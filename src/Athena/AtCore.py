@@ -1,12 +1,5 @@
-import os
 import re
-import sys
-import runpy
 import numbers
-import pkgutil
-import importlib
-
-from pprint import pprint
 
 from Athena import AtUtils
 from Athena import AtConstants
@@ -431,7 +424,7 @@ class Register(object):
                 return {}
 
             # Load the env module from the string path stored.
-            _envModule = AtUtils.loadModuleFromStr('{}.{}'.format(_envStr, _env), verbose=self.verbose)
+            _envModule = AtUtils.importFromStr('{}.{}'.format(_envStr, _env), verbose=self.verbose)
             if _envModule is None:
                 return {}
             _env['module'] = _envModule
@@ -662,10 +655,9 @@ class Blueprint(object):
             raise RuntimeError() #TODO Add an error message here
 
         moduleStr, _, processStr = self.processStr.rpartition('.')
-        self.module = AtUtils.loadModuleFromStr(moduleStr)
-
+        self.module = AtUtils.importFromStr(moduleStr)
         if self.module is None:
-            raise RuntimeError() #TODO Add an error message here
+            raise RuntimeError('Can not import module {0}'.format(moduleStr))
 
         processClass = getattr(self.module, processStr)
 

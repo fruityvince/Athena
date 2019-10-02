@@ -1,6 +1,6 @@
 PROGRAM_NAME = 'Athena'
 
-VERSION = 'wip'
+VERSION = 'alpha 0.0.1'
 
 AVAILABLE_SOFTWARE = ['maya', 'katana', 'houdini', 'nuke', 'mari']
 
@@ -12,9 +12,9 @@ PROGRESSBAR_FORMAT = '  %p% - {0}'
 
 PROCESS_TEMPLATE = \
 '''
-from Athena import coreQC
+from Athena import AtCore
 
-class {ProcessName}(coreQC.QualityProcess):
+class {ProcessName}(AtCore.Process):
 	"""This docstring will be displayed in the help popup.
 	You should really explain clearly what the check, fix and other overrided method will do.
 

@@ -1,7 +1,6 @@
 import os
 import re
 import sys
-import runpy
 import pkgutil
 import logging
 import importlib
@@ -47,7 +46,7 @@ def getEnvs(package, software='standalone', verbose=False):
                                                athenaPackage=athenaPackage,
                                                software=software)  # {path}.{program}_{prod}.{software}.env
 
-    module = loadModuleFromStr(envPackage)
+    module = importFromStr(envPackage)
     if not module:
         return
 
@@ -55,7 +54,7 @@ def getEnvs(package, software='standalone', verbose=False):
         env = '{}.{}'.format(envPackage, name)
         availableEnvs[name] = {
             'str': env,
-            'module': loadModuleFromStr(env)
+            'module': importFromStr(env)
         }
 
     return availableEnvs
@@ -109,7 +108,7 @@ def getPackages(verbose=False):
         if not loadedPackage.endswith('.'.join(groups)):
             continue
 
-        module = loadModuleFromStr(loadedPackage)
+        module = importFromStr(loadedPackage)
         
         packages[groups[-1]] = {
             'str': loadedPackage,
@@ -202,7 +201,7 @@ def formatSoftware(softwarePath):
     return ''
 
 
-def loadModuleFromStr(moduleStr, verbose=False):
+def importFromStr(moduleStr, verbose=False):
     """Try to import the module from the given string
 
     parameters
@@ -222,9 +221,12 @@ def loadModuleFromStr(moduleStr, verbose=False):
     try:
         # module = __import__(moduleStr, fromlist=[''])
         module = importlib.import_module(moduleStr) #TODO: if multiple checks come from same module try to load module multiple time
-        if verbose: LOGGER.info('import {} success'.format(moduleStr))
-    except ImportError:
-        if verbose: LOGGER.exception('load {} failed'.format(moduleStr))
+        if verbose: 
+            LOGGER.info('import {} success'.format(moduleStr))
+    except ImportError as exception:
+        if verbose: 
+            LOGGER.exception('load {} failed'.format(moduleStr))
+        raise ImportError(exception) # AtEnvImportError - exception.args
 
     return module
 

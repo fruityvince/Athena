@@ -7,9 +7,6 @@
  /_/    \_\__|_| |_|\___|_| |_|\__,_|
 """
 
-
-import sys
-
 from Athena.gui import AtUi
 from Athena import AtCore, AtUtils, AtConstants
 
@@ -45,7 +42,7 @@ def batch(prod, env, dev=False, verbose=False):
             if state:
                 toFix.append(process)
 
-        except Exception as error:
+        except Exception as exception:
             pass  #TODO: Raise an error
 
     for process in toFix:
@@ -56,7 +53,7 @@ def batch(prod, env, dev=False, verbose=False):
             if state:
                 traceback.append((process.name, result))
 
-        except Exception as error:
+        except Exception as exception:
             pass  #TODO: Raise an error
 
     if traceback:
