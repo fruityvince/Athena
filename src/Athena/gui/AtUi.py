@@ -53,7 +53,7 @@ class Athena(QtWidgets.QMainWindow):
         super(Athena, self).__init__(self.parentApplication)
 
         self.register = AtCore.Register(verbose=verbose)
-        self.resourcesManager = AtUtils.RessourcesManager(__file__, relativeMove=('..', 'ressources'), key=AtConstants.PROGRAM_NAME)
+        self.resourcesManager = AtUtils.RessourcesManager(__file__, backPath='..{0}ressources'.format(os.sep), key=AtConstants.PROGRAM_NAME)
         self.software = self.register.software
         self.defaultDisplayMode = displayMode if displayMode in AtConstants.AVAILABLE_DISPLAY_MODE else AtConstants.AVAILABLE_DISPLAY_MODE[0]
         self.dev = dev
@@ -504,7 +504,7 @@ class Status(object):
     """
 
     class DEFAULT():
-        color = QtGui.QColor(45, 45, 45)
+        color = QtGui.QColor(50, 50, 50)
         isFail = False        
 
     class SUCCESS():
@@ -562,7 +562,6 @@ class ProcessWidget(QtWidgets.QWidget):
     {
         background-color: rgba(0, 0, 0, 130);
     }
-    
     QPushButton#help:hover
     {
         background-color: rgba(0, 0, 0, 0);
@@ -589,7 +588,7 @@ class ProcessWidget(QtWidgets.QWidget):
         self.parent = parent
         self.window = window or parent
 
-        self.resourcesManager = AtUtils.RessourcesManager(__file__, relativeMove=('..', 'ressources'), key=AtConstants.PROGRAM_NAME)
+        self.resourcesManager = AtUtils.RessourcesManager(__file__, backPath='..{0}ressources'.format(os.sep), key=AtConstants.PROGRAM_NAME)
         
         self.blueprint = blueprint
         self.name = self.blueprint.name
@@ -987,7 +986,7 @@ class TracebackList(QtWidgets.QTreeWidget):
 
         self.parent = parent
 
-        self.resourcesManager = AtUtils.RessourcesManager(__file__, relativeMove=('..', 'ressources'), key=AtConstants.PROGRAM_NAME)
+        self.resourcesManager = AtUtils.RessourcesManager(__file__, backPath='..{0}ressources'.format(os.sep), key=AtConstants.PROGRAM_NAME)
 
         self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
 

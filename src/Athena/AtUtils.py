@@ -335,17 +335,20 @@ def logHeader(message):
     ))
 '''
 
+#FIXME: It seems that the RessourceManager re-instantiate new icon everytime
 class RessourcesManager(object):
     #TODO: Document this class
 
-    instance = None
+    INSTANCE = None
 
     class __RessourcesManager:
         """docstring for __RessourceManager"""
-        def __init__(self):
 
-            self.__ressources = []
-            self._ressources = {}
+        __ressources = []
+        _ressources = {}
+
+        def __init__(self):
+            pass
 
         def __getitem__(self, value):
 
@@ -361,51 +364,54 @@ class RessourcesManager(object):
 
             keyData = self._ressources.get(key, None)
             if keyData is None:
-                return fallback
+                return fallback if fallback is not None else asType()
 
             strData = keyData.get(str, None)
             if strData is None:
-                return fallback
+                return fallback if fallback is not None else asType()
             
             dataAsStr = strData.get(toGet, None)
             if dataAsStr is None:
-                return fallback
+                return fallback if fallback is not None else asType()
 
             if asType is str:
                 return dataAsStr
 
             dataAsType = fallback
             asTypeData = keyData.get(asType, None)
+
             if asTypeData is None:
                 try:
                     dataAsType = asType(dataAsStr)
                     keyData[asType] = {toGet: dataAsType}
                 except:
-                    return fallback
+                    return fallback if fallback is not None else asType()
             else:
                 dataAsType = asTypeData.get(toGet, None)
                 if dataAsType is None:
                     dataAsType = asType(dataAsStr)
                     asTypeData[toGet] = asType(dataAsStr)
-            
+            # if 'check' in toGet:
+            #     from pprint import pprint
+            #     pprint(self._ressources)
             return dataAsType
 
-        def _addReader(self, path, relativeMove=(), key=None):
+        def _addReader(self, path, backPath='', key=None):
 
             key = key or path
             if path not in self._ressources:
                 folderPath = self._getFolderPath(path)
 
-                folderPath = self._searchFolder(folderPath, relativeMove=relativeMove)
+                folderPath = self._searchFolder(folderPath, backPath=backPath)
                 files = self.getFiles(folderPath)
 
                 self._ressources[key] = {}
                 self._ressources[key][str] = files
                 self._ressources[key]['__path__'] = folderPath
 
-        def _searchFolder(self, path, relativeMove=()):
+        def _searchFolder(self, path, backPath=''):
 
-            return os.path.join(path, *relativeMove)
+            return os.path.join(path, backPath)
 
         def _getFolderPath(self, path):
 
@@ -426,24 +432,24 @@ class RessourcesManager(object):
                         
             return files
 
-    def __new__(cls, path=None, relativeMove=(), key=None, reset=False):
+    def __new__(cls, path=None, backPath=(), key=None, reset=False):
 
-        if reset: 
-            RessourcesManager.instance = None
+        if reset:
+            RessourcesManager.INSTANCE = None
             
-        if RessourcesManager.instance is None:
-            RessourcesManager.instance = RessourcesManager.__RessourcesManager()
+        if RessourcesManager.INSTANCE is None:
+            RessourcesManager.INSTANCE = RessourcesManager.__RessourcesManager()
 
         if path is not None:
-            RessourcesManager.instance._addReader(path, relativeMove=relativeMove, key=key)
+            RessourcesManager.INSTANCE._addReader(path, backPath=backPath, key=key)
 
-        return RessourcesManager.instance
+        return RessourcesManager.INSTANCE
 
     def __getattr__(self, name):
-        return getattr(self.instance, name)
+        return getattr(self.INSTANCE, name)
 
     def __setattr__(self, name):
-        return setattr(self.instance, name)
+        return setattr(self.INSTANCE, name)
 
 
 def softwareSelection(toSelect):
