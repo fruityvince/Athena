@@ -1,5 +1,8 @@
 import re
 import numbers
+import six
+
+from pprint import pprint
 
 from Athena import AtUtils
 from Athena import AtConstants
@@ -219,9 +222,10 @@ class Register(object):
         self._software = AtUtils.getSoftware()
 
         self._data = {}
+        self._packages = {}
         self._prods = []
 
-        self._blueprints = {}
+        self._blueprints = []
 
         self._setup()
 
@@ -276,7 +280,7 @@ class Register(object):
             self._software == other.software,
             self._data.keys() == other._data.keys(),
             self._prods == other._prods,
-            self._blueprints.keys() == other.blueprints.keys(),
+            self._blueprints == other.blueprints,
             self._prod == other.prod,
             self._env == other.env
         ])
@@ -334,15 +338,16 @@ class Register(object):
             Define if the function should log informations about its process. (default: False)
         """
 
-        packages = AtUtils.getPackages()
+        self._packages = packages = AtUtils.getPackages()
 
         for prod, packageData in packages.items():
             
             self._data[prod] = {'prod': packageData}
-            self._prods.append(prod)
             
-            envs = AtUtils.getEnvs(packageData['str'], software=self._software)
+            envs = AtUtils.getEnvs(packageData['import'], software=self._software)
             self._data[prod]['envs'] = envs
+
+        self._prods = packages.keys()
     
     def getEnvs(self, prod):
         """Return envs stored in the given prod.
@@ -389,10 +394,8 @@ class Register(object):
 
         assert prod in self._prods, '"{0}" Are not registered yet in this Register'.format(prod)
 
+        self._blueprints = []
         self._prod = prod
-        self._env = env
-        
-        self._blueprints = {}
 
         # Get the dict for the specified prod in self._data
         _prod = self._data.get(prod, None)
@@ -408,18 +411,19 @@ class Register(object):
         _env = _envs.get(env, None)
         if _env is None:
             return {}
+        self._env = env
 
         # Get the blueprint in self._data[prod]['envs'][env]. If one is found, return it.  #TODO: It seems there is an error
-        _blueprints = _env.get('blueprints', None)
-        if _blueprints is not None and not forceReload:
-            return _blueprints['objects']
+        blueprints = _env.get('blueprints', None)
+        if blueprints is not None and not forceReload:
+            return blueprints['objects']
 
         # Get the env module to retrieve the blueprint from.
         _envModule = _env.get('module', None)
         if _envModule is None:
             
-            # Get the string path to the env package in self._data[prod]['envs'][env]['str']
-            _envStr = _env.get('str', None)
+            # Get the string path to the env package in self._data[prod]['envs'][env]['import']
+            _envStr = _env.get('import', None)
             if _envStr is None:
                 return {}
 
@@ -432,28 +436,33 @@ class Register(object):
 
         # If force reload are enabled, this will reload the env module.
         if forceReload:
-            reload(_envModule)  #TODO: Maybe do this only in dev mode !
+            reload(_envModule)
 
         # Try to access the `blueprints` variable in the env module
-        _blueprints = getattr(_envModule, 'blueprints', {})
+        blueprints = getattr(_envModule, 'blueprints', {})
+        options = getattr(_envModule, 'options', {})
+        ID.flush()
 
         # Generate a blueprint object for each process retrieved in the `blueprint` variable of the env module.
-        for i in range(len(_blueprints)):
-            self._blueprints[i] = Blueprint(blueprint=_blueprints[i], verbose=self.verbose)
+        for i in range(len(blueprints)):
+            self._blueprints.append(Blueprint(blueprint=blueprints[i], verbose=self.verbose))
         
-        batchLinkResolveBlueprints = {blueprintIndex: blueprintObject for blueprintIndex, blueprintObject in self._blueprints.items() if blueprintObject.inBatch}
-        for blueprint in self._blueprints.values():
+        batchLinkResolveBlueprints = [blueprintObject for blueprintObject in self._blueprints if blueprintObject.inBatch]
+        for blueprint in self._blueprints:
             blueprint.resolveLinks(batchLinkResolveBlueprints, check=Link.CHECK, fix=Link.FIX, tool=Link.TOOL)
 
         # Finally store blueprints in the env dict in data.
-        _env['blueprints'] = {'data': _blueprints,
-                              'objects': self._blueprints} #TODO: These data seems to not be used.
+        _env['blueprints'] = {
+            'data': blueprints,
+            'objects': self._blueprints,
+            'options': options
+        }
 
         return self._blueprints
 
     def reloadBlueprintsModules(self):
 
-        modules = list(set([blueprint.module for blueprint in  self._blueprints.values()]))
+        modules = list(set([blueprint.module for blueprint in  self._blueprints]))
 
         for module in modules:
             reload(module)
@@ -468,7 +477,7 @@ class Register(object):
 
     def setData(self, key, data):
 
-        assert key not in ('data', 'objects'), 'Key "" is already used by the register for built-in data.'.format(key)
+        assert key not in ('data', 'objects'), 'Key "{0}" is already used by the register for built-in data.'.format(key)
 
         self._data[self._prod]['envs'][self._env][key] = data
 
@@ -476,6 +485,13 @@ class Register(object):
 
         self.verbose = value
 
+    def getProdIcon(self, prod):
+
+        return self._packages.get(prod, {}).get('icon', None)
+
+    def getEnvIcon(self, prod, env):
+
+        return self._data[prod]['envs'][env].get('icon', None)
 
 class Blueprint(object):
     """This object will manage a single process instance to be used through an ui.
@@ -738,7 +754,7 @@ class Blueprint(object):
             index, _driver, _driven = link
 
             # Allow to prevent error when the key does not exist, this could happen when the target is available in ui or batch only.
-            if linkedObjects.get(index, None) is None:
+            if linkedObjects[index] is None:
                 continue
 
             driven = _driven
@@ -836,12 +852,40 @@ class Tag(object):
     DEPENDANT       = NO_CHECK | NO_FIX | NO_TOOL
 
 
-#TODO: Implement this functionality.
 class Link(object):
 
     CHECK = 'check'
     FIX = 'fix'
     TOOL = 'tool'
+
+
+class MetaID(type):
+        
+    def __getattr__(cls, value):
+
+        if value not in cls.data:
+            dataLen = len(cls.data)
+            setattr(cls, value, dataLen)
+
+            cls.data[value] = dataLen
+
+        return getattr(cls, value)
+
+#TODO: six is used to ensure compatibility between python 2.x and 3.x, replace by `object, metaclass=MetaID`
+class ID(six.with_metaclass(MetaID, object)):
+    
+    data = {}
+
+    def __new__(cls):
+        raise NotImplementedError('{0} is not meant to be instanciated.'.format(cls))
+
+    @classmethod
+    def flush(cls):
+        for key in cls.data:
+            delattr(cls, key)
+        
+        cls.data.clear()
+
 
 # def merge_env(env_pck):
 

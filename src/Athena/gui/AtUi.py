@@ -329,13 +329,17 @@ class Athena(QtWidgets.QMainWindow):
     def setup_prod(self):
         """ Switch the current prod used by the tool. """
 
+        register = self.register
+
         with BusyCursor(), BlockSignals([self.prods_QComboBox], block=True):
             prods_QComboBox = self.prods_QComboBox
 
             # Get the current text before clearing the QComboBox and populate it with the right data.
             currentProd = prods_QComboBox.currentText()
             prods_QComboBox.clear()
-            prods_QComboBox.addItems(self.register.prods)
+
+            for prod in register.prods:
+                prods_QComboBox.addItem(QtGui.QIcon(register.getProdIcon(prod)), prod)
 
             # Fallback 1: If there is a value in the QComboBox before, switch on the same value for the new prod if exists
             currentIndex = prods_QComboBox.findText(currentProd)
@@ -367,6 +371,8 @@ class Athena(QtWidgets.QMainWindow):
             If the method is called after prod changed and current env also exist in the new prod, it will stay on the same env.
         """
 
+        register = self.register
+
         with BusyCursor(), BlockSignals([self.envs_QComboBox], block=True):
             # Catch a possible error, if signal give -1 there is an error
             if index == -1: 
@@ -382,7 +388,9 @@ class Athena(QtWidgets.QMainWindow):
             # Get the current text before clearing the QComboBox and populate it with the right data.
             currentEnv = envs_QComboBox.currentText()
             envs_QComboBox.clear()
-            envs_QComboBox.addItems(list(self.register.getEnvs(prod)))
+
+            for env in register.getEnvs(prod):
+                envs_QComboBox.addItem(QtGui.QIcon(register.getEnvIcon(prod, env)), env)
 
             # Fallback 1: If there is a value in the QComboBox before, switch on the same value for the new prod if exists
             currentIndex = envs_QComboBox.findText(currentEnv)
@@ -1320,13 +1328,13 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         if self.processes and not self.dev:
             return  # There is already widgets in the register
 
-        for index, blueprint in self._data.items():
+        for index, blueprint in enumerate(self._data):
             if not blueprint.inUi:
                 continue  # Skip this check if it does not be run in ui
             self.processes[index] = ProcessWidget(blueprint, parent=self, window=self.parent)
         self.register.setData('widget', self.processes)
 
-        for blueprint in self._data.values():
+        for blueprint in self._data:
             blueprint.resolveLinks(self.processes, check='execCheck', fix='execFix', tool='execTool')
 
     # Could be property (get/set) named displayMode
@@ -1335,17 +1343,17 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
 
         mode = self.displayMode
 
-        if mode == 'Blueprint':
-            self.addWidgetsByBlueprint()
-        elif mode == 'Category':
+        if mode == AtConstants.AVAILABLE_DISPLAY_MODE[0]:
+            self.addWidgetsByHeader()
+        elif mode == AtConstants.AVAILABLE_DISPLAY_MODE[1]:
             self.addWidgetsByCategory()
-        elif mode == 'Alphabetically':
+        elif mode == AtConstants.AVAILABLE_DISPLAY_MODE[2]:
             self.addWidgetsAlphabetically()
 
         for widget in self.processes.values():
             widget.leaveEvent(None)
 
-    def addWidgetsByBlueprint(self):
+    def addWidgetsByHeader(self):
         """ Add widget in the scroll area by Blueprint order (default) """
 
         for index in self.processes.keys():

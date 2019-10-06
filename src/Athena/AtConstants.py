@@ -4,7 +4,7 @@ VERSION = 'alpha 0.0.1'
 
 AVAILABLE_SOFTWARE = ['maya', 'katana', 'houdini', 'nuke', 'mari']
 
-AVAILABLE_DISPLAY_MODE = ['Blueprint', 'Category', 'Alphabetically']
+AVAILABLE_DISPLAY_MODE = ['Header', 'Category', 'Alphabetically']
 
 ENV_TEMPLATE = '{package}.{athenaPackage}.{software}.env'
 

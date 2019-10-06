@@ -50,11 +50,14 @@ def getEnvs(package, software='standalone', verbose=False):
     if not module:
         return
 
-    for _, name, _ in pkgutil.iter_modules(module.__path__):
+    for importer, name, _ in pkgutil.iter_modules(module.__path__):
         env = '{}.{}'.format(envPackage, name)
+        icon = os.path.join(importer.path, '{0}.png'.format(name))
+
         availableEnvs[name] = {
-            'str': env,
-            'module': importFromStr(env)
+            'import': env,
+            'module': importFromStr(env),
+            'icon': icon if os.path.isfile(icon) else None
         }
 
     return availableEnvs
@@ -109,10 +112,15 @@ def getPackages(verbose=False):
             continue
 
         module = importFromStr(loadedPackage)
+
+        path = os.path.dirname(module.__file__)
+        icon = os.path.join(path, 'icon.png')
         
         packages[groups[-1]] = {
-            'str': loadedPackage,
-            'module': module
+            'path': path,
+            'import': loadedPackage,
+            'module': module,
+            'icon': icon if os.path.isfile(icon) else None
         }
 
         if verbose:
@@ -344,7 +352,7 @@ class RessourcesManager(object):
     class __RessourcesManager:
         """docstring for __RessourceManager"""
 
-        __ressources = []
+        PATH = '__path__'
         _ressources = {}
 
         def __init__(self):
@@ -360,60 +368,85 @@ class RessourcesManager(object):
                     self.__last_query = ressource
                     return ressource
 
-        def get(self, toGet, key, asType=str, fallback=None):
+        def get(self, toGet, key, asType=str, fallback=None, args=None, kwargs=None):
+            """Get a specific ressource in the given reader and in the specified object type.
+
+            If the item can't be retrieved in the specific type, return the given fallback (default: None).
+            You can specify args and kwargs to cast you ressource in the desired object type with your parameters.
+
+            Parameters
+            -----------
+            toGet: str
+                Name of the ressource to get. (Should contain the file extension. e.g. icon.png)
+            key: str
+                Name of the reader to use, if the reader does not exists, return the fallback.
+            asType: type, default: str
+                The type in which cast the retrieved ressource. Instantiate it if it does not exists in the reader.
+            fallback: default: None
+                The value to return if nothing is found.
+            args: list or NoneType, default: None
+                List of arguments to use when cast the ressource in the given type.
+            args: dict or NoneType, default: None
+                Dict of keyword arguments to use when cast the ressource in the given type.
+
+            Returns
+            --------
+            object
+                Return the queried ressource in the given type or the fallback value.
+            """
 
             keyData = self._ressources.get(key, None)
             if keyData is None:
-                return fallback if fallback is not None else asType()
+                return fallback
 
             strData = keyData.get(str, None)
             if strData is None:
-                return fallback if fallback is not None else asType()
+                return fallback
             
             dataAsStr = strData.get(toGet, None)
             if dataAsStr is None:
-                return fallback if fallback is not None else asType()
+                return fallback
 
             if asType is str:
                 return dataAsStr
 
+            args = args or []
+            kwargs = kwargs or {}
+
             dataAsType = fallback
             asTypeData = keyData.get(asType, None)
 
+            # Data is not in the RessourceManager
             if asTypeData is None:
-                try:
-                    dataAsType = asType(dataAsStr)
+                try: 
+                    dataAsType = asType(dataAsStr, *args, **kwargs)
                     keyData[asType] = {toGet: dataAsType}
                 except:
-                    return fallback if fallback is not None else asType()
+                    return fallback
+
+            # Data is in the RessourceManager
             else:
                 dataAsType = asTypeData.get(toGet, None)
                 if dataAsType is None:
                     dataAsType = asType(dataAsStr)
-                    asTypeData[toGet] = asType(dataAsStr)
-            # if 'check' in toGet:
-            #     from pprint import pprint
-            #     pprint(self._ressources)
+                    asTypeData[toGet] = dataAsType
+
             return dataAsType
 
         def _addReader(self, path, backPath='', key=None):
 
             key = key or path
             if path not in self._ressources:
-                folderPath = self._getFolderPath(path)
+                folderPath = self.__getFolderPath(path)
 
-                folderPath = self._searchFolder(folderPath, backPath=backPath)
-                files = self.getFiles(folderPath)
+                folderPath = self.__searchFolder(folderPath, backPath=backPath)
+                files = self.__getFiles(folderPath)
 
                 self._ressources[key] = {}
                 self._ressources[key][str] = files
-                self._ressources[key]['__path__'] = folderPath
+                self._ressources[key][self.PATH] = folderPath
 
-        def _searchFolder(self, path, backPath=''):
-
-            return os.path.join(path, backPath)
-
-        def _getFolderPath(self, path):
+        def __getFolderPath(self, path):
 
             path = os.path.abspath(path)
             if os.path.isfile(path):
@@ -421,29 +454,33 @@ class RessourcesManager(object):
 
             return path
 
-        def getFiles(self, path):
+        def __searchFolder(self, path, backPath=''):
+
+            return os.path.join(path, backPath)
+
+        def __getFiles(self, path):
 
             files = {}
             for path_, _, files_ in os.walk(path):
-                for file_ in files_:
-                    file_ = os.path.abspath(os.path.join(path_, file_))
-                    if os.path.isfile(file_):
-                        files[os.path.basename(file_)] = file_
+                for file in files_:
+                    file = os.path.abspath(os.path.join(path_, file))
+                    if os.path.isfile(file):
+                        files[os.path.basename(file)] = file
                         
             return files
 
-    def __new__(cls, path=None, backPath=(), key=None, reset=False):
+    def __new__(cls, path=None, backPath='', key=None, reset=False):
 
         if reset:
-            RessourcesManager.INSTANCE = None
+            cls.INSTANCE = None
             
-        if RessourcesManager.INSTANCE is None:
-            RessourcesManager.INSTANCE = RessourcesManager.__RessourcesManager()
+        if cls.INSTANCE is None:
+            cls.INSTANCE = cls.__RessourcesManager()
 
-        if path is not None:
-            RessourcesManager.INSTANCE._addReader(path, backPath=backPath, key=key)
+        if key not in cls.INSTANCE._ressources:
+            cls.INSTANCE._addReader(path, backPath=backPath, key=key)
 
-        return RessourcesManager.INSTANCE
+        return cls.INSTANCE
 
     def __getattr__(self, name):
         return getattr(self.INSTANCE, name)
