@@ -156,9 +156,9 @@ def automatic(cls):
     """    
 
     # Get overriden methods from the class to decorate, it's needed to redefinned the methods.
-    overriddenMethods = AtUtils.getOverriddenMethods(cls, Process)
+    overriddenMethods = AtUtils.getOverriddedMethods(cls, Process)
 
-    check_ = overriddenMethods.get('check', None)
+    check_ = overriddenMethods.get(AtConstants.CHECK, None)
     if check_ is not None:
         def check(self, *args, **kwargs):
 
@@ -172,9 +172,9 @@ def automatic(cls):
 
             self.isChecked = True
 
-        setattr(cls, 'check', check)  # Replace the check method in the process
+        setattr(cls, AtConstants.CHECK, check)  # Replace the check method in the process
 
-    fix_ = overriddenMethods.get('fix', None)
+    fix_ = overriddenMethods.get(AtConstants.FIX, None)
     if fix_ is not None:
         def fix(self, *args, **kwargs):
 
@@ -182,15 +182,15 @@ def automatic(cls):
 
             self.isChecked = False
 
-        setattr(cls, 'fix', fix)  # Replace the fix method in the process
+        setattr(cls, AtConstants.FIX, fix)  # Replace the fix method in the process
 
-    tool_ = overriddenMethods.get('tool', None)
+    tool_ = overriddenMethods.get(AtConstants.TOOL, None)
     if tool_ is not None:
         def tool(self, *args, **kwargs):
 
             tool_(self, *args, **kwargs)
 
-        setattr(cls, 'tool', tool)  # Replace the tool method in the process
+        setattr(cls, AtConstants.TOOL, tool)  # Replace the tool method in the process
 
     return cls
 
@@ -286,6 +286,10 @@ class Register(object):
         ])
 
     @property
+    def data(self):
+        return self._data
+
+    @property
     def software(self):
         return self._software
 
@@ -341,10 +345,9 @@ class Register(object):
         self._packages = packages = AtUtils.getPackages()
 
         for prod, packageData in packages.items():
-            
-            self._data[prod] = {'prod': packageData}
-            
             envs = AtUtils.getEnvs(packageData['import'], software=self._software)
+            
+            self._data[prod] = packageData
             self._data[prod]['envs'] = envs
 
         self._prods = packages.keys()
@@ -360,21 +363,24 @@ class Register(object):
             Prod from which return stored envs.
         verbose: bool
             Define if the function should log informations about its process. (default: False)
+        
+        Returns
+        -------
+        list
+            List of envs for the given prod.
         """
 
         # First, get the prod in data
-        _prod = self._data.get(prod, None)
-        if prod is None:
-            #TODO: Maybe verbsose ? or error ? The prod does not exist.
-            return
+        prodData = self._data.get(prod, None)
+        if prodData is None:
+            return []
 
         # Then, get the env in the precedently queried prod dict.
-        _envs = _prod.get('envs', None)
-        if prod is None:
-            #TODO: Maybe verbsose ?
-            return
+        envData = prodData.get('envs', None)
+        if envData is None:
+            return []
 
-        return _envs.keys()
+        return envData.keys()
 
     def getBlueprints(self, prod, env, forceReload=False):
         """Get the blueprint object for the given prod and env.
@@ -390,6 +396,11 @@ class Register(object):
             Env from which get the blueprint object.
         forceReload: bool
             Define if the function should reload its blueprints or not.
+
+        Returns
+        -------
+        dict
+            Dict containing all blueprint objects for the given prod env.
         """
 
         assert prod in self._prods, '"{0}" Are not registered yet in this Register'.format(prod)
@@ -398,71 +409,72 @@ class Register(object):
         self._prod = prod
 
         # Get the dict for the specified prod in self._data
-        _prod = self._data.get(prod, None)
-        if _prod is None:
+        prodData = self._data.get(prod, None)
+        if prodData is None:
             return {}
 
         # Get the dict for all envs in self._data[prod]
-        _envs = _prod.get('envs', None)
-        if _envs is None:
+        envsData = prodData.get('envs', None)
+        if envsData is None:
             return {}
 
         # Get the dict for the specified env in self._data[prod]['envs']
-        _env = _envs.get(env, None)
-        if _env is None:
+        envData = envsData.get(env, None)
+        if envData is None:
             return {}
         self._env = env
 
         # Get the blueprint in self._data[prod]['envs'][env]. If one is found, return it.  #TODO: It seems there is an error
-        blueprints = _env.get('blueprints', None)
+        blueprints = envData.get('blueprints', None)
         if blueprints is not None and not forceReload:
             return blueprints['objects']
 
         # Get the env module to retrieve the blueprint from.
-        _envModule = _env.get('module', None)
-        if _envModule is None:
+        self._module = envModule = envData.get('module', None)
+        if envModule is None:
             
             # Get the string path to the env package in self._data[prod]['envs'][env]['import']
-            _envStr = _env.get('import', None)
-            if _envStr is None:
+            envStr = envData.get('import', None)
+            if envStr is None:
                 return {}
 
             # Load the env module from the string path stored.
-            _envModule = AtUtils.importFromStr('{}.{}'.format(_envStr, _env), verbose=self.verbose)
-            if _envModule is None:
+            envModule = AtUtils.importFromStr('{}.{}'.format(envStr, envData), verbose=self.verbose)
+            if envModule is None:
                 return {}
-            _env['module'] = _envModule
-        self._module = _envModule
+            envData['module'] = envModule
 
         # If force reload are enabled, this will reload the env module.
         if forceReload:
-            reload(_envModule)
+            reload(envModule)
 
         # Try to access the `blueprints` variable in the env module
-        blueprints = getattr(_envModule, 'blueprints', {})
-        options = getattr(_envModule, 'options', {})
+        blueprints = getattr(envModule, 'blueprints', {})
+        options = getattr(envModule, 'options', {})
         ID.flush()
 
         # Generate a blueprint object for each process retrieved in the `blueprint` variable of the env module.
+        self._blueprints = blueprintObjects = []
         for i in range(len(blueprints)):
-            self._blueprints.append(Blueprint(blueprint=blueprints[i], verbose=self.verbose))
+            blueprintObjects.append(Blueprint(blueprint=blueprints[i], verbose=self.verbose))
         
-        batchLinkResolveBlueprints = [blueprintObject for blueprintObject in self._blueprints if blueprintObject.inBatch]
-        for blueprint in self._blueprints:
+        # Default resolve for blueprints if available in batch, call the `resolveLinks` method from blueprints to change the targets functions.
+        batchLinkResolveBlueprints = [blueprintObject if blueprintObject._inBatch else None for blueprintObject in blueprintObjects]
+        for blueprint in blueprintObjects:
             blueprint.resolveLinks(batchLinkResolveBlueprints, check=Link.CHECK, fix=Link.FIX, tool=Link.TOOL)
 
         # Finally store blueprints in the env dict in data.
-        _env['blueprints'] = {
-            'data': blueprints,
-            'objects': self._blueprints,
-            'options': options
+        envData['blueprints'] = {
+                'data': blueprints,
+                'objects': blueprintObjects,
+                'options': options
         }
 
         return self._blueprints
 
     def reloadBlueprintsModules(self):
 
-        modules = list(set([blueprint.module for blueprint in  self._blueprints]))
+        modules = list(set([blueprint._module for blueprint in  self._blueprints]))
 
         for module in modules:
             reload(module)
@@ -473,6 +485,7 @@ class Register(object):
 
         if not self._prod or not self._env:
             return None
+
         return self._data[self._prod]['envs'][self._env].get(data, None)
 
     def setData(self, key, data):
@@ -514,31 +527,30 @@ class Blueprint(object):
         self.verbose = verbose
 
         self.blueprint = blueprint
-        self.processStr = self.blueprint.get('process', None)
-        self.category = self.blueprint.get('category', 'Other')
+        self.processStr = blueprint.get('process', None)
+        self.category = blueprint.get('category', 'Other')
 
-        _initArgs, _initKwargs = self.getArguments('__init__')
-        self.module = None
-        self.process = self.getProcess(_initArgs, _initKwargs)
+        initArgs, initKwargs = self.getArguments('__init__')
+        self._module = None
+        self._process = self.getProcess(initArgs, initKwargs)
+        self._links = {AtConstants.CHECK: [], AtConstants.FIX: [], AtConstants.TOOL: []}
 
-        self.links = {'check': [], 'fix': []}
-
-        self.name = AtUtils.camelCaseSplit(self.process._name)
-        self.docstring = self.createDocstring()
+        self._name = AtUtils.camelCaseSplit(self._process._name)
+        self._docstring = self.createDocstring()
 
         self._check = None
         self._fix = None
         self._tool = None
 
-        self.isOptional = False
-        self.isNonBlocking = False
-        self.isDependant = False
-        self.inUi = True
-        self.inBatch = True
+        self._isOptional = False
+        self._isNonBlocking = False
+        self._isDependant = False
+        self._inUi = True
+        self._inBatch = True
 
-        self.isCheckable = False
-        self.isFixable = False
-        self.hasTool = False
+        self._isCheckable = False
+        self._isFixable = False
+        self._hasTool = False
 
         # setupCore will automatically retrieve the method needed to execute the process. 
         # And also the base variable necessary to define if theses methods are available.
@@ -546,10 +558,50 @@ class Blueprint(object):
         self.setupTags()
 
     def __repr__(self):
+        """Return the representation of the object if it is printed."""
 
-        return "<{0} '{1}' object at {2}'>".format(self.__class__.__name__, self.process.__class__.__name__, hex(id(self)))
+        return "<{0} '{1}' object at {2}'>".format(self.__class__.__name__, self._process.__class__.__name__, hex(id(self)))
 
-    ## --- Methods to execute Process Methods -- ##
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def docstring(self):
+        return self._docstring
+
+    @property
+    def isOptional(self):
+        return self._isOptional
+    
+    @property
+    def isNonBlocking(self):
+        return self._isNonBlocking
+
+    @property
+    def isDependant(self):
+        return self._isDependant
+
+    @property
+    def inUi(self):
+        return self._inUi
+    
+    @property
+    def inBatch(self):
+        return self._inBatch
+    
+    @property
+    def isCheckable(self):
+        return self._isCheckable
+
+    @property
+    def isFixiable(self):
+        return self._isFixiable
+
+    @property
+    def hasTool(self):
+        return self._hasTool
+        
     def check(self, links=True):
         """This is a wrapper for the process check that will automatically execute it with the right parameters.
 
@@ -564,13 +616,13 @@ class Blueprint(object):
         if self._check is None:
             return None, None
         
-        args, kwargs = self.getArguments(self._check.__name__)
+        args, kwargs = self.getArguments(AtConstants.CHECK)
         returnValue = self._check(*args, **kwargs)
 
-        result = self.filterResult(self.process._feedback)
+        result = self.filterResult(self._process._feedback)
 
         if links:
-            self.runLinks('check')  #FIXME: Links seems to be launched in batch even if they are UI_ONLY.
+            self.runLinks(AtConstants.CHECK)  #FIXME: Links seems to be launched in batch even if they are NO_UI.
         
         return result, bool(result)
 
@@ -586,11 +638,11 @@ class Blueprint(object):
         if self._fix is None:
             return None
 
-        args, kwargs = self.getArguments(self._fix.__name__)
+        args, kwargs = self.getArguments(AtConstants.FIX)
         result = self._fix(*args, **kwargs)
 
         if links:
-            self.runLinks('fix')
+            self.runLinks(AtConstants.FIX)
 
         return result
 
@@ -606,17 +658,17 @@ class Blueprint(object):
         if self._tool is None:
             return
 
-        args, kwargs = self.getArguments(self._tool.__name__)
+        args, kwargs = self.getArguments(AtConstants.TOOL)
         result = self._tool(*args, **kwargs)
 
         if links:
-            self.runLinks('tool')
+            self.runLinks(AtConstants.TOOL)
 
         return result
 
     def runLinks(self, which):
 
-        links = self.links[which]
+        links = self._links[which]
 
         for link in links:
             link()
@@ -671,11 +723,11 @@ class Blueprint(object):
             raise RuntimeError() #TODO Add an error message here
 
         moduleStr, _, processStr = self.processStr.rpartition('.')
-        self.module = AtUtils.importFromStr(moduleStr)
-        if self.module is None:
+        self._module = module = AtUtils.importFromStr(moduleStr)
+        if module is None:
             raise RuntimeError('Can not import module {0}'.format(moduleStr))
 
-        processClass = getattr(self.module, processStr)
+        processClass = getattr(module, processStr)
 
         return processClass(*args, **kwargs)
 
@@ -692,19 +744,19 @@ class Blueprint(object):
             dict of all kwargs expected by the process __init__ method.
         """
         
-        overriddenMethods = AtUtils.getOverriddenMethods(self.process.__class__, Process)
+        overriddenMethods = AtUtils.getOverriddedMethods(self._process.__class__, Process)
 
-        if overriddenMethods.get('check', False):
-            self.isCheckable = True
-            self._check = self.process.check
+        if overriddenMethods.get(AtConstants.CHECK, False):
+            self._isCheckable = True
+            self._check = self._process.check
 
-        if overriddenMethods.get('fix', False):
-            self.isFixable = True
-            self._fix = self.process.fix
+        if overriddenMethods.get(AtConstants.FIX, False):
+            self._isFixable = True
+            self._fix = self._process.fix
 
-        if overriddenMethods.get('tool', False):
-            self.hasTool = True
-            self._tool = self.process.tool
+        if overriddenMethods.get(AtConstants.TOOL, False):
+            self._hasTool = True
+            self._tool = self._process.tool
 
     def setupTags(self):
         """Setup the tags used by this process
@@ -717,33 +769,34 @@ class Blueprint(object):
             return
 
         if tags & Tag.NO_CHECK:
-            self.isCheckable = False
+            self._isCheckable = False
 
         if tags & Tag.NO_FIX:
-            self.isFixable = False
+            self._isFixable = False
 
         if tags & Tag.NO_TOOL:
-            self.hasTool = False
+            self._hasTool = False
 
         if tags & Tag.OPTIONAL:
-            self.isOptional = True
-            self.isNonBlocking = True
+            self._isOptional = True
+            self._isNonBlocking = True
 
         if tags & Tag.NON_BLOCKING:
-            self.isNonBlocking = True
+            self._isNonBlocking = True
 
-        if tags & Tag.BATCH_ONLY:
-            self.inBatch = True
-            self.inUi = False
+        if tags & Tag.NO_BATCH:
+            self._inBatch = False
 
-        if tags & Tag.UI_ONLY:
-            self.inUi = True
-            self.inBatch = False
+        if tags & Tag.NO_UI:
+            self._inUi = False
 
-    def resolveLinks(self, linkedObjects, check='check', fix='fix', tool='tool'):
+    def resolveLinks(self, linkedObjects, check=AtConstants.CHECK, fix=AtConstants.FIX, tool=AtConstants.TOOL):
         """  """
 
-        self.links = {'check': [], 'fix': [], 'tool': []}
+        self._links = {AtConstants.CHECK: [], AtConstants.FIX: [], AtConstants.TOOL: []}
+
+        if not linkedObjects:
+            return
 
         links = self.blueprint.get('links', None)
         if links is None:
@@ -754,6 +807,7 @@ class Blueprint(object):
             index, _driver, _driven = link
 
             # Allow to prevent error when the key does not exist, this could happen when the target is available in ui or batch only.
+            #FIXME: Error here when can not link
             if linkedObjects[index] is None:
                 continue
 
@@ -762,7 +816,7 @@ class Blueprint(object):
             driven = fix if _driven == Link.FIX else driven
             driven = tool if _driven == Link.TOOL else driven
 
-            self.links[_driver].append(getattr(linkedObjects[index], driven))
+            self._links[_driver].append(getattr(linkedObjects[index], driven))
 
     def setProgressbar(self, progressbar):
         """ Called in the ui this method allow to give access to the progress bar for the user
@@ -773,17 +827,18 @@ class Blueprint(object):
             QProgressBar object to connect to the process to display check and fix progression.
         """
 
-        self.process._progressbar = progressbar
+        self._process._progressbar = progressbar
 
     def createDocstring(self):
+        """Generate the Blueprint doc from Process docstring and data in the `_docFormat_` variable."""
 
-        docstring = self.process.__doc__ or AtConstants.NO_DOCUMENTATION_AVAILABLE
+        docstring = self._process.__doc__ or AtConstants.NO_DOCUMENTATION_AVAILABLE
         docstring += '\n {0} '.format(self.processStr)
 
         docFormat = {}
         for match in re.finditer(r'\{(\w+)\}', docstring):
             matchStr = match.group(1)
-            docFormat[matchStr] = self.process._docFormat_.get(matchStr, '')
+            docFormat[matchStr] = self._process._docFormat_.get(matchStr, '')
 
         return docstring.format(**docFormat)
 
@@ -833,11 +888,11 @@ class Tag(object):
     DEPENDANT: str
         A dependent process need links to be run through another process.
     NON_BLOCKING: str
-        A non blocking process will raise a non blocking error (orange), its error is ignored.
+        A non blocking process will raise a non blocking error, its error is ignored.
     BACTH_ONLY: str
-        This process will not be run in ui but only in batch mode.
-    UI_ONLY: str
-        This process will not be executed outside ui.
+        This process will only be run in batch mode.
+    NO_UI: str
+        This process will only be executed in batch..
 
     """
 
@@ -846,45 +901,51 @@ class Tag(object):
     NO_TOOL         = 4
     NON_BLOCKING    = 8
     OPTIONAL        = 16
-    BATCH_ONLY      = 32
-    UI_ONLY         = 64
+    NO_BATCH        = 32
+    NO_UI           = 64
     
     DEPENDANT       = NO_CHECK | NO_FIX | NO_TOOL
 
 
 class Link(object):
 
-    CHECK = 'check'
-    FIX = 'fix'
-    TOOL = 'tool'
+    CHECK = AtConstants.CHECK
+    FIX = AtConstants.FIX
+    TOOL = AtConstants.TOOL
 
 
 class MetaID(type):
         
     def __getattr__(cls, value):
 
-        if value not in cls.data:
-            dataLen = len(cls.data)
-            setattr(cls, value, dataLen)
+        if value not in cls._data_:
+            idCount = len(cls._data_)
+            setattr(cls, value, idCount)
+            cls._data_[value] = idCount
 
-            cls.data[value] = dataLen
+        return value
 
-        return getattr(cls, value)
+    def __getattribute__(cls, value):
+        
+        if value in type.__dict__:
+            raise ValueError('Can not create ID: `{0}`, it will override python <type> inherited attribute of same name.'.format(value))
+
+        return type.__getattribute__(cls, value)
 
 #TODO: six is used to ensure compatibility between python 2.x and 3.x, replace by `object, metaclass=MetaID`
 class ID(six.with_metaclass(MetaID, object)):
     
-    data = {}
+    _data_ = {}
 
     def __new__(cls):
         raise NotImplementedError('{0} is not meant to be instanciated.'.format(cls))
 
     @classmethod
     def flush(cls):
-        for key in cls.data:
+        for key in cls._data_:
             delattr(cls, key)
         
-        cls.data.clear()
+        cls._data_.clear()
 
 
 # def merge_env(env_pck):
@@ -939,7 +1000,7 @@ def start(env, register, verbose=False):
             raise RuntimeError('Unable to instance ' + processClass) #custom erreurs
         
         # get list of methods that have been overrided (implemented.)
-        overrided_method = AtUtils.getOverriddenMethods(processClass, Process)
+        overrided_method = AtUtils.getOverriddedMethods(processClass, Process)
 
         print overrided_method
 
@@ -947,11 +1008,11 @@ def start(env, register, verbose=False):
         #     print '__init__ for ' + str(processClass)
         #     __process.__init__()
 
-        # if 'check' in overrided_method:
+        # if AtConstants.CHECK in overrided_method:
         #     print 'check for ' + str(processClass)
         #     __process.check()
 
-        # if 'fix' in overrided_method:
+        # if AtConstants.FIX in overrided_method:
         #     print 'fix for ' + str(processClass)
         #     __process.fix()
 

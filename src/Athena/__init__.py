@@ -22,46 +22,48 @@ def launch(prod=None, env=None, displayMode='Blueprint', dev=False, verbose=Fals
     return window
 
 def batch(prod, env, dev=False, verbose=False):
-    """ Used to run processes without any AtUi """
+    """ Used to run blueprintes without any AtUi """
 
     if dev:
         safeReload()
 
     register = AtCore.Register(verbose=verbose)
-    blueprint = register.getBlueprints(prod, env)
+    blueprints = register.getBlueprints(prod, env)
 
     traceback = []
     toFix = []
-    for process in blueprint.itervalues():
+    for blueprint in blueprints:
 
-        if not process.isCheckable or process.isNonBlocking or not process.inBatch:
+        print blueprint.name, blueprint._isCheckable, blueprint._isNonBlocking, not blueprint._inBatch
+        if not blueprint._isCheckable or blueprint._isNonBlocking or not blueprint._inBatch:
             continue
 
+        print blueprint
         try:
-            result, state = process.check()
+            result, state = blueprint.check()
             if state:
-                toFix.append(process)
+                toFix.append(blueprint)
 
         except Exception as exception:
             pass  #TODO: Raise an error
 
-    for process in toFix:
+    for blueprint in toFix:
         try:
-            process.fix()
-            result, state = process.check()
+            blueprint.fix()
+            result, state = blueprint.check()
             
             if state:
-                traceback.append((process.name, result))
+                traceback.append((blueprint.name, result))
 
         except Exception as exception:
             pass  #TODO: Raise an error
 
     if traceback:
-        log = "\nErrors found during execution of {0}'s {1} processes:\n".format(prod, env)
+        log = "\nErrors found during execution of {0}'s {1} blueprints:\n".format(prod, env)
         log += '-'*len(log) + '\n'
 
-        for processName, result in traceback:
-            log += '\n\t{0}:'.format(processName)
+        for blueprintName, result in traceback:
+            log += '\n\t{0}:'.format(blueprintName)
 
             for each in result:
                 log += '\n\t\t- {0}:'.format(each['title'])
@@ -73,9 +75,8 @@ def batch(prod, env, dev=False, verbose=False):
 
 def safeReload():
 
-    # reloading the core cause issue since the base class is reloaded
-    # but not the classes that inherits it (All user defined processes)
-    # http://stackoverflow.com/questions/9722343
+    # reloading the core cause issue since the base class is reloaded but not the classes that inherits it 
+    # (All user defined blueprints) see more: http://stackoverflow.com/questions/9722343
     _legacyProcess = AtCore.Process
     reload(AtCore)
     AtCore.Process = _legacyProcess

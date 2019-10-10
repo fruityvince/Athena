@@ -240,7 +240,7 @@ def importFromStr(moduleStr, verbose=False):
 
 
 # could be only with instance of class. (get inheritance and return dict with each one as key and list of overriden as value)
-def getOverriddenMethods(instance, cls):
+def getOverriddedMethods(instance, cls):
     """Detect all methods that have been overridden from a subclass of a class
 
     Parameters

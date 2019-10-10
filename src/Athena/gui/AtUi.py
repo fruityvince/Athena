@@ -599,13 +599,13 @@ class ProcessWidget(QtWidgets.QWidget):
         self.resourcesManager = AtUtils.RessourcesManager(__file__, backPath='..{0}ressources'.format(os.sep), key=AtConstants.PROGRAM_NAME)
         
         self.blueprint = blueprint
-        self.name = self.blueprint.name
-        self.docstring = self.blueprint.docstring
-        self.isCheckable = self.blueprint.isCheckable
-        self.isFixable = self.blueprint.isFixable
-        self.hasTool = self.blueprint.hasTool
-        self.isOptional = self.blueprint.isOptional
-        self.isNonBlocking = self.blueprint.isNonBlocking
+        self.name = blueprint._name
+        self.docstring = blueprint._docstring
+        self.isCheckable = blueprint._isCheckable
+        self.isFixable = blueprint._isFixable
+        self.hasTool = blueprint._hasTool
+        self.isOptional = blueprint._isOptional
+        self.isNonBlocking = blueprint._isNonBlocking
 
         self.status = Status.DEFAULT
         self.isOpened = False
@@ -687,17 +687,17 @@ class ProcessWidget(QtWidgets.QWidget):
         self.name_QLabel.setIconSize(QtCore.QSize(15, 15))
 
         # -- Tool PushButton
-        self.tool_QPushButton.setObjectName('tool')
+        self.tool_QPushButton.setObjectName(AtConstants.TOOL)
         self.tool_QPushButton.setToolTip('Launch "{0}" tool'.format(self.name))
         self.tool_QPushButton.setVisible(self.hasTool)
 
         # -- Fix PushButton
-        self.fix_QPushButton.setObjectName('fix')
+        self.fix_QPushButton.setObjectName(AtConstants.FIX)
         self.fix_QPushButton.setToolTip('Run "{0}" fix'.format(self.name))
         self.fix_QPushButton.setVisible(False)
 
         # -- Check PushButton
-        self.check_QPushButton.setObjectName('check')
+        self.check_QPushButton.setObjectName(AtConstants.CHECK)
         self.check_QPushButton.setToolTip('Run "{0}" check'.format(self.name))
         self.check_QPushButton.setVisible(self.isCheckable)
 
@@ -1280,7 +1280,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
 
             self.parent.generalProgress_QProgressbar.setValue(progressbarLen*i)
 
-            if process.blueprint.isCheckable and process.isChecked() and (process.isVisible() or not self.parent.canClose):
+            if process.blueprint._isCheckable and process.isChecked() and (process.isVisible() or not self.parent.canClose):
                 self.ensureWidgetVisible(process)
                 process.execCheck()
         
@@ -1324,18 +1324,21 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         Build the process widgets from blueprint list and setup them (resolve links with process methods.)
         """
         
-        self.processes = self.register.getData('widget') or {}
-        if self.processes and not self.dev:
+        self.processes = processes = self.register.getData('widget') or {}
+        if processes and not self.dev:
             return  # There is already widgets in the register
 
+        uiLinkResolveBlueprints = []
         for index, blueprint in enumerate(self._data):
-            if not blueprint.inUi:
+            if not blueprint._inUi:
+                uiLinkResolveBlueprints.append(None)
                 continue  # Skip this check if it does not be run in ui
-            self.processes[index] = ProcessWidget(blueprint, parent=self, window=self.parent)
-        self.register.setData('widget', self.processes)
+            processes[index] = processWidget = ProcessWidget(blueprint, parent=self, window=self.parent)
+            uiLinkResolveBlueprints.append(processWidget)
+        self.register.setData('widget', processes)
 
         for blueprint in self._data:
-            blueprint.resolveLinks(self.processes, check='execCheck', fix='execFix', tool='execTool')
+            blueprint.resolveLinks(uiLinkResolveBlueprints, check='execCheck', fix='execFix', tool='execTool')
 
     # Could be property (get/set) named displayMode
     def addWidgets(self):

@@ -4,6 +4,12 @@ VERSION = 'alpha 0.0.1'
 
 AVAILABLE_SOFTWARE = ['maya', 'katana', 'houdini', 'nuke', 'mari']
 
+CHECK = 'check'
+
+FIX = 'fix'
+
+TOOL = 'tool'
+
 AVAILABLE_DISPLAY_MODE = ['Header', 'Category', 'Alphabetically']
 
 ENV_TEMPLATE = '{package}.{athenaPackage}.{software}.env'
@@ -18,9 +24,11 @@ class {ProcessName}(AtCore.Process):
 	"""This docstring will be displayed in the help popup.
 	You should really explain clearly what the check, fix and other overrided method will do.
 
-	Check: Explain clearly what this check will do.
+	Check: 
+		Explain clearly what this check will do.
 
-	Fix: Explain clearly how the fix will correst the errors.
+	Fix: 
+		Explain clearly how the fix will correst the errors.
 
 	Misc: 
 		- Here you can specify if there is specificities to know before using this check
