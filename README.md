@@ -59,44 +59,44 @@ from Athena.AtCore import Tag, Link, ID
 
 header = \
 (
-	ID.ProcessExample1,
-    ID.ProcessExample2,
-    ID.ReadMeExample,
+  ID.ProcessExample1,
+  ID.ProcessExample2,
+  ID.ReadMeExample,
 )
 
 register = \
 (
-    ID.ProcessExample1:
-		{
-			'process': 'Athena_example.GitHub_README.standalone.process.exampleProcessesModule.ProcessExample1', 
-			'category': 'Example',
-			'tags': Tag.NO_BATCH | Tag.OPTIONAL,
-			'arguments': 
+  ID.ProcessExample1:
+    {
+      'process': 'Athena_example.GitHub_README.standalone.process.exampleProcessesModule.ProcessExample1', 
+      'category': 'Example',
+      'tags': Tag.NO_BATCH | Tag.OPTIONAL,
+      'arguments': 
         {
-					'__init__': ([], {'value': 'example'})
-				},
-            'links': 
-				[
-					(ID.ReadMeExample, Link.FIX, Link.CHECK), 
-				],
-		},
-    
-    ID.ProcessExample2:
-		{
-			'process': 'Athena_example.GitHub_README.standalone.process.exampleProcessesModule.ProcessExample2',
-			'category': 'Test',
-		}, 
-        
-    ID.ReadMeExample:
-		{
-			'process': 'Athena_example.GitHub_README.standalone.process.exampleProcessesModule.ReadMeExample',
-			'tags': Tag.NO_BATCH,
-			'category': 'Example'
-		},
+          '__init__': ([], {'value': 'example'})
+        },
+      'links': 
+        [
+          (ID.ReadMeExample, Link.FIX, Link.CHECK), 
+        ],
+    },
+
+  ID.ProcessExample2:
+    {
+      'process': 'Athena_example.GitHub_README.standalone.process.exampleProcessesModule.ProcessExample2',
+      'category': 'Test',
+    }, 
+
+  ID.ReadMeExample:
+    {
+      'process': 'Athena_example.GitHub_README.standalone.process.exampleProcessesModule.ReadMeExample',
+      'tags': Tag.NO_BATCH,
+      'category': 'Example'
+    },
 )
 
 parameters = \
 {
-    'recheck': True,
+  'recheck': True,
 }
 ```
