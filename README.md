@@ -44,7 +44,7 @@ Any process to use within Athena have to inherit from `Athena.AtCore.Process` th
 The Process base class will also define attributes like `toCheck`, `toFix`, `data` and `iChecked` for you to manage your data internally (But you can define yours).
 There also are dunder variables like `_docFormat_` which have to be a dict containing key/value pair to format the `__doc__` attribute of your class.
 
-## The methods to override
+## The methods to override:
 
 ###### check
 First in the check method you have to clear the feedback by calling `clearFeedback` method (to prevent have the feedback added everytime you will launche the check again).
@@ -70,7 +70,7 @@ You can either choose to:
 The Process object can ive you access to a QProgressBar (That you will need to connect in you ui using `Athena.AtCore.Blueprint.setProgressbar` method).
 If a progress bar is connected to your Process you can use the `Athena.AtCore.Process.setProgressValue` that take first the new progress value and the text to display in the widget.
 
-###### Athena.AtCore.automatic decorator
+###### Athena.AtCore.automatic
 This decorator allow you to decorate a Process to handle many things:
 - Call `Athena.AtCore.Process.clearFeedback` automatically before running the `check` method.
 - Reset `toCheck`, `toFix` and `data` attributes to their default value.
