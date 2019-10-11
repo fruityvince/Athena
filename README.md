@@ -38,17 +38,25 @@ You should have something like:
                 __init__.py
 ```
 
-###### How to load your env ?
 
-As I said before, the Register object will retrieve all imported Athena packages by parsing the `sys.path` so your Athena modules have to be be imported.
-To simplify the use of this mechanic you can:
-- Import your package in any startup script of you software. (Best for personal use)
-- Resolve the right package through rez, conda or whatever you use. (Best for production)
-
-
-###### How to write an env file ?
+## How to write an env file ?
 
 The environment file is a classic python module that define specific attributes that will be interpreted through Athena API, it have to follow a simple convention to be clear and easy to manage and support.
+
+###### header
+`header` is the first variable to define in an env module, it define the process execution order and the IDs to use in all the module.
+The header can be any ordered python iterable object containing one ID for each process you will add in the register. Each ID have to be unique and different from python object's default attributes. (I recommand a `tuple` if you want to define a basic env or a `list` if you have to append/insert/extend the header on the fly)
+
+###### register
+`register` is the variable that will store all process description, it needs to be a python `dict` with the precedently defined IDs as keys and a dict as value that contain:
+- **'process'**: The process key is the minimum needed to define a process, its basically the full python import string.
+- **'category'**: The category can be defined for any process and used to group them in a ui.
+- **'tags'**: The tags will define some parameters into the Processes's Blueprints. Its one or more Tag separated with `|`.
+- **'arguments'**: This is a dict with the method name as key and any ordered python iterable containing a `list` (for the args) and a `dict` (for the kwargs) as value.
+- **'links'**: The links allow you to connect processes methods executions, it can be any ordered python iterable containing the ID of the linked process, the driver method and the driven method.
+
+###### parameters
+The `parameters` variable is a classic python dict where you can add any key/value pair you want to affect your tool comportment.
 
 ```python
 """
@@ -100,3 +108,10 @@ parameters = \
   'recheck': True,
 }
 ```
+
+###### How to load your env ?
+
+As I said before, the Register object will retrieve all imported Athena packages by parsing the `sys.path` so your Athena modules have to be be imported.
+To simplify the use of this mechanic you can:
+- Import your package in any startup script of you software. (Best for personal use)
+- Resolve the right package through rez, conda or whatever you use. (Best for production)
