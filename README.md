@@ -37,16 +37,42 @@ You should have something like:
 ```
 
 
+# How to write an Athena Process class ?
+
+Any process to use within Athena have to inherit from `Athena.AtCore.Process` and override its base methods and define some attributes.
+The `Process` object is abstract and can not be instanciated, it come with `check`, `fix` and `tool` methods to override, if they are overrided the `Blueprint` object will have its equivalent attributes to `True` (`isCheckable` if the Process have the `check` method overrided, `isFixable` for the `fix` and `hasTool` for the `tool`)
+
+The Process base class will also defines attributes like `toCheck`, `toFix`, `data` and `iChecked` to manage your data internally (But you can define yours).
+There also are dunder variables like `_docFormat_` which have to be a dict containing key/value pair to format the `__doc__` attribute from your class.
+
+###### check
+First in the check method you have to clear the feedback by calling `clearFeedback` method (to prevent have the feedback added everytime you will launche the check again).
+Then you are free to retieve/update the data to check and do whatever you need. (Note that you can define all the methods you want. PS: You should not override parent class methods except `check`, `fix` and/or `tool`)
+
+At the end of the check or wherever you will have to add data to fix you will need to call the `addFeedback` method.
+This method takes a `title` and an iterable `toDisplay` for data retrieved (if python object `Ellipsis` is given the check will only have a title). You can also add another iterable `toSelect` with the data to use for selection (of course `toDisplay` and `toSelect` will need to be ordered the same way). The last optional argument `documentation` is meant to be used to link a doc to this feedback (Usefull to display a pop up with detailled indication for a possible manual fix).
+
+###### fix
+The fix will have to use the data retrieved through the check method, you can use the data stored in an instance attribute or re-launch the check.
+The `isChecked` default Process attribute is meant to be set to `True` before leaving the check and to `False` after leaving the fix, you can easily use it or any other boolean attribute to check if you have to launch the check before or not.
+
+###### tool
+The tool is the quickest method to override because it only need to handle the initialisation of another Qt tool.
+You can either choose to:
+- Call `show()` directly in the tool method to show your ui.
+- Create your object and return it. (Athena tool will automatically parent your window to itself)
+
+
 # How to write an env file ?
 
 The environment file is a classic python module that define specific attributes that will be interpreted through Athena API, it have to follow a simple convention to be clear and easy to manage and support.
 
 ###### header
-`header` is the first variable to define in an env module, it define the process execution order and the IDs to use in all the module.
+This is the first variable to define in an env module, it define the process execution order and the IDs to use in all the module.
 The header can be any ordered python iterable object containing one ID for each process you will add in the register. Each ID have to be unique and different from python object's default attributes. (I recommand a `tuple` if you want to define a basic env or a `list` if you have to append/insert/extend the header on the fly)
 
 ###### register
-`register` is the variable that will store all process description, it needs to be a python `dict` with the precedently defined IDs as keys and a dict as value that contain:
+This variable will store all processes description, it needs to be a python `dict` with the precedently defined IDs as keys and a dict as value that contain:
 - **'process'**: The process key is the minimum needed to define a process, its basically the full python import string.
 - **'category'**: The category can be defined for any process and used to group them in a ui.
 - **'tags'**: The tags will define some parameters into the Processes's Blueprints. Its one or more Tag separated with `|`.
@@ -54,8 +80,9 @@ The header can be any ordered python iterable object containing one ID for each 
 - **'links'**: The links allow you to connect processes methods executions, it can be any ordered python iterable containing the ID of the linked process, the driver method and the driven method.
 
 ###### parameters
-The `parameters` variable is a classic python dict where you can add any key/value pair you want to affect your tool comportment.
+The `parameters` variable is a classic python dict where you can add any key/value pair you want to affect your tool behaviour.
 
+###### e.g.
 ```python
 """
 Description of the env
@@ -107,9 +134,10 @@ parameters = \
 }
 ```
 
-## How to load your env ?
+# How to load your env ?
 
 As I said before, the Register object will retrieve all imported Athena packages by parsing the `sys.path` so your Athena modules have to be be imported.
+
 To simplify the use of this mechanic you can:
 - Import your package in any startup script of you software. (Best for personal use)
 - Resolve the right package through rez, conda or whatever you use. (Best for production)
