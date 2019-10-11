@@ -39,11 +39,12 @@ You should have something like:
 
 # How to write an Athena Process class ?
 
-Any process to use within Athena have to inherit from `Athena.AtCore.Process` and override its base methods and define some attributes.
-The `Process` object is abstract and can not be instanciated, it come with `check`, `fix` and `tool` methods to override, if they are overrided the `Blueprint` object will have its equivalent attributes to `True` (`isCheckable` if the Process have the `check` method overrided, `isFixable` for the `fix` and `hasTool` for the `tool`)
+Any process to use within Athena have to inherit from `Athena.AtCore.Process` that is an abstract object and can not be instanciated, it come with `check`, `fix` and `tool` methods that you will need to override. If they are overrided the `Athena.AtCore.Blueprint` object will have its equivalent attributes to `True` (`isCheckable` if the Process have the `check` method overrided, `isFixable` for the `fix` and `hasTool` for the `tool`).
 
-The Process base class will also defines attributes like `toCheck`, `toFix`, `data` and `iChecked` to manage your data internally (But you can define yours).
-There also are dunder variables like `_docFormat_` which have to be a dict containing key/value pair to format the `__doc__` attribute from your class.
+The Process base class will also define attributes like `toCheck`, `toFix`, `data` and `iChecked` for you to manage your data internally (But you can define yours).
+There also are dunder variables like `_docFormat_` which have to be a dict containing key/value pair to format the `__doc__` attribute of your class.
+
+## The methods to override
 
 ###### check
 First in the check method you have to clear the feedback by calling `clearFeedback` method (to prevent have the feedback added everytime you will launche the check again).
@@ -61,6 +62,19 @@ The tool is the quickest method to override because it only need to handle the i
 You can either choose to:
 - Call `show()` directly in the tool method to show your ui.
 - Create your object and return it. (Athena tool will automatically parent your window to itself)
+
+
+## What else ?
+
+###### QProgressBar
+The Process object can ive you access to a QProgressBar (That you will need to connect in you ui using `Athena.AtCore.Blueprint.setProgressbar` method).
+If a progress bar is connected to your Process you can use the `Athena.AtCore.Process.setProgressValue` that take first the new progress value and the text to display in the widget.
+
+###### Athena.AtCore.automatic decorator
+This decorator allow you to decorate a Process to handle many things:
+- Call `Athena.AtCore.Process.clearFeedback` automatically before running the `check` method.
+- Reset `toCheck`, `toFix` and `data` attributes to their default value.
+- Set the `isChecked` value to `True` after the `check` and `False` after the `fix`.
 
 
 # How to write an env file ?
