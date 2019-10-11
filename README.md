@@ -13,27 +13,32 @@ Athena will automatically retrieve imported packages and modules in `sys.path` t
 The convention is to have packages named **Athena_{whatever}** where you replace `{whatever}` with the name of you choice.
 
 1. Create a python package starting with `Athena_`.
-2. Create in this package any package you want with the name of a soft in lowercase (`standalone` is also natively supported). see AtConstants module for the currently supported software.
-3. In all of theses packages you need an `envs` and `processes` python packages.
-4. Add python module with the name of your env in the `envs` package to start. (If you want, also a a `png` file with the same name)
-5 In the `processes` package you are free to create any module you whant to write your processes. (e.g. Animation, Pipeline, Texturing or whatever you want.)
+2. Create any package you whant that will all contain the following hierarchy. (This is the **context** taht can also contain an image named `icon.png`)
+3. Create in this package any package you want with the name of a soft in lowercase (`standalone` is also natively supported). see AtConstants module for the currently supported software.
+4. In all of theses packages you need an `envs` and `processes` python packages.
+5. Add python module with the name of your env in the `envs` package to start. (If you want, also a `.png` file with the same name)
+6. In the `processes` package you are free to create any module you whant to write your processes. (e.g. Animation, Pipeline, Texturing or whatever you want.)
 
 You should have something like:
 ```
-────Athena_example
-    │   __init__.py
-    │
-    └───standalone
-        │   __init__.py
-        │
-        ├───envs
-        │       exampleEnv.png
-        │       exampleEnv.py
-        │       __init__.py
-        │
-        └───processes
-                exampleProcessesModule.py
-                __init__.py
+├───Athena_example
+   │   __init__.py
+   │
+   └───UserContext
+       │   icon.png
+       │   __init__.py
+       │
+       └───standalone
+           │   __init__.py
+           │
+           ├───envs
+           │       exampleEnv.png
+           │       exampleEnv.py
+           │       __init__.py
+           │
+           └───processes
+                   exampleProcessesModule.py
+                   __init__.py
 ```
 
 
