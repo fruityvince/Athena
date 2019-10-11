@@ -1,6 +1,4 @@
-# Athena
-
-## What is Athena ?
+# What is Athena ?
 
 Athena is an **API** and a **Tool** made to create, manage and use Sanity Check and Fix process in Python.
 It allow the user to define a list of process to execute in a specific order with some sort of parameter to ensure a minimum Quality/Sanity in a specific environment.
@@ -9,7 +7,7 @@ The built-in tool works with a lot of the most used CG software that have a pyth
 Off course the tool also works as a standalone tool into Linux, MacOs and Windows.
 
 
-## How to setup an Athena package ?
+# How to setup an Athena package ?
 
 Athena will automatically retrieve imported packages and modules in `sys.path` to find thoses with the matching name.
 The convention is to have packages named **Athena_{whatever}** where you replace `{whatever}` with the name of you choice.
@@ -39,7 +37,7 @@ You should have something like:
 ```
 
 
-## How to write an env file ?
+# How to write an env file ?
 
 The environment file is a classic python module that define specific attributes that will be interpreted through Athena API, it have to follow a simple convention to be clear and easy to manage and support.
 
@@ -109,7 +107,7 @@ parameters = \
 }
 ```
 
-###### How to load your env ?
+## How to load your env ?
 
 As I said before, the Register object will retrieve all imported Athena packages by parsing the `sys.path` so your Athena modules have to be be imported.
 To simplify the use of this mechanic you can:
