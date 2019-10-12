@@ -1,20 +1,23 @@
 # What is Athena ?
 
-Athena is an **API** and a **Tool** made to create, manage and use Sanity Check and Fix process in Python.
+Athena is an **API** and a **Tool** made to create and manage Sanity Check and Fix process in Python.
 It allow the user to define a list of process to execute in a specific order with some sort of parameter to ensure a minimum Quality/Sanity in a specific environment.
 
 The built-in tool works with a lot of the most used CG software that have a python interpreter like Autodesk Maya, The Foundry Katana, Mari, Nuke, SideFx Houdini etc... (Feel free to test it in another software)
 Off course the tool also works as a standalone tool into Linux, MacOs and Windows.
 
 
+# How it works ?
+
+
 # How to setup an Athena package ?
 
 Athena will automatically retrieve imported packages and modules in `sys.path` to find thoses with the matching name.
-The convention is to have packages named **Athena_{whatever}** where you replace `{whatever}` with the name of you choice.
+The convention is to have the `Athena_` prefix before the package name.
 
 1. Create a python package starting with `Athena_`.
-2. Create any package you whant that will all contain the following hierarchy. (This is the **context** taht can also contain an image named `icon.png`)
-3. Create in this package any package you want with the name of a soft in lowercase (`standalone` is also natively supported). see AtConstants module for the currently supported software.
+2. Create any package you whant that will all contain the following hierarchy. (This is the **context** that can also contain an image named `icon.png`)
+3. Create in this package any package you need with the name of a soft in lowercase (`standalone` is also natively supported). see `Athena.AtConstants` module for the currently supported softwares.
 4. In all of theses packages you need an `envs` and `processes` python packages.
 5. Add python module with the name of your env in the `envs` package to start. (If you want, also a `.png` file with the same name)
 6. In the `processes` package you are free to create any module you whant to write your processes. (e.g. Animation, Pipeline, Texturing or whatever you want.)
@@ -44,7 +47,7 @@ You should have something like:
 
 # How to write an Athena Process class ?
 
-Any process to use within Athena have to inherit from `Athena.AtCore.Process` that is an abstract object and can not be instanciated, it come with `check`, `fix` and `tool` methods that you will need to override. If they are overrided the `Athena.AtCore.Blueprint` object will have its equivalent attributes to `True` (`isCheckable` if the Process have the `check` method overrided, `isFixable` for the `fix` and `hasTool` for the `tool`).
+Any process to use within Athena have to inherit from `Athena.AtCore.Process` that is an abstract object and can not be instanciated, it comes with `check`, `fix` and `tool` methods that you will need to override. If they are overrided the `Athena.AtCore.Blueprint` object will have its equivalent attributes to `True` (`isCheckable` if the Process have the `check` method overrided, `isFixable` for the `fix` and `hasTool` for the `tool`).
 
 The Process base class will also define attributes like `toCheck`, `toFix`, `data` and `iChecked` for you to manage your data internally (But you can define yours).
 There also are dunder variables like `_docFormat_` which have to be a dict containing key/value pair to format the `__doc__` attribute of your class.
