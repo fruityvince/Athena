@@ -86,59 +86,59 @@ This decorator allow you to decorate a Process to handle many things:
 from Athena import AtCore
 
 class {ProcessName}(AtCore.Process):
-	"""This docstring will be retrieved to be used as a help documentation. (included in Athena tool)
-	You should explain clearly what the check, fix and other overrided method will do.
+    """This docstring will be retrieved to be used as a help documentation. (included in Athena tool)
+    You should explain clearly what the check, fix and other overrided method will do.
 
-	Check: 
-		Explain clearly what this check will do.
+    Check: 
+	Explain clearly what this check will do.
 
-	Fix: 
-		Explain clearly how the fix will correst the errors.
+    Fix: 
+	Explain clearly how the fix will correst the errors.
 
-	Misc: 
-		- Here you can specify if there is specificities to know before using this check
-		- You can also give details on known issues.
-	"""
+    Misc: 
+	- Here you can specify if there is specificities to know before using this check
+	- You can also give details on known issues.
+    """
 
-	def __init__(self):
-		""" __init__ docstring """
+    def __init__(self):
+        """ __init__ docstring """
 
-		pass
+	pass
 
-	def check(self):
-		""" check docstring """
+    def check(self):
+        """ check docstring """
 
-		self.clearFeedback()
-      toFix = []
+        self.clearFeedback()
+        toFix = []
+
+        toCheck = range(50)
+        baseValue = 100./(len(toCheck) or 0)
+        for i, each in enumerate(toCheck):
+            self.setProgressValue(i*baseValue)
+            
+	    # Check what you want, do you condition ...
+            toFix.append(each)
+
+        self.toFix = toFix
+
+        self.isChecked = True
+        return toFix
       
-      toCheck = range(50)
-      baseValue = 100./(len(toCheck) or 0)
-      for i, each in enumerate(toCheck):
-         self.setProgressValue(i*baseValue)
-         
-         # Check what you want, do you condition ...
-         toFix.append(each)
-         
-      self.toFix = toFix
-      
-      self.isChecked = True
-      return toFix
-      
-	def fix(self):
-		""" fix docstring """
+    def fix(self):
+        """ fix docstring """
 
-		if not self.isChecked:
-         self.check()
+        if not self.isChecked:
+            self.check()
          
-      for each in self.toFix:
-         # fix the problem
+        for each in self.toFix:
+            # fix the problem
          
-      self.isChecked = False
-
-	def tool(self):
-		""" tool docstring """
+        self.isChecked = False
+    
+    def tool(self):
+        """ tool docstring """
       
-      return myUi()
+        return myUi()
 
 ```
 
