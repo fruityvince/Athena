@@ -157,9 +157,12 @@ This variable will store all processes description, it needs to be a python `dic
 - **'tags'**: The tags will define some parameters into the Processes's Blueprints. Its one or more Tag separated with `|`.
 - **'arguments'**: This is a dict with the method name as key and any ordered python iterable containing a `list` (for the args) and a `dict` (for the kwargs) as value.
 - **'links'**: The links allow you to connect processes methods executions, it can be any ordered python iterable containing the ID of the linked process, the driver method and the driven method.
+- **'options'**: The options allow you to specify custom parameters for your Process that will be available through the Blueprint to customize behaviour into a tool.
 
 ###### parameters
 The `parameters` variable is a classic python dict where you can add any key/value pair you want to affect your tool behaviour.
+Athena tool can recognize:
+- 'recheck': (bool) - If `True` the `Fix all` will trigger the `Check all`.
 
 ###### e.g.
 ```python
