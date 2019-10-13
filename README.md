@@ -162,7 +162,7 @@ This variable will store all processes description, it needs to be a python `dic
 ###### parameters
 The `parameters` variable is a classic python dict where you can add any key/value pair you want to affect your tool behaviour.
 Athena tool can recognize:
-- 'recheck': (bool) - If `True` the `Fix all` will trigger the `Check all`.
+- 'recheck': If `True` the `Fix all` will trigger the `Check all`. (bool)
 
 ###### e.g.
 ```python
