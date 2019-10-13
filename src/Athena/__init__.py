@@ -10,31 +10,32 @@
 from Athena.gui import AtUi
 from Athena import AtCore, AtUtils, AtConstants
 
-def launch(prod=None, env=None, displayMode='Blueprint', dev=False, verbose=False):
+__version__ = AtConstants.VERSION
+
+def launch(context=None, env=None, displayMode='Blueprint', dev=False, verbose=False):
     """ Main function to launch the tool. """
 
     if dev:
         safeReload()
 
-    window = AtUi.Athena(prod=prod, env=env, displayMode=displayMode, dev=dev, verbose=verbose)
+    window = AtUi.Athena(context=context, env=env, displayMode=displayMode, dev=dev, verbose=verbose)
     window.show()
 
     return window
 
-def batch(prod, env, dev=False, verbose=False):
+def batch(context, env, dev=False, verbose=False):
     """ Used to run blueprintes without any AtUi """
 
     if dev:
         safeReload()
 
     register = AtCore.Register(verbose=verbose)
-    blueprints = register.getBlueprints(prod, env)
+    blueprints = register.getBlueprints(context, env)
 
     traceback = []
     toFix = []
     for blueprint in blueprints:
 
-        print blueprint.name, blueprint._isCheckable, blueprint._isNonBlocking, not blueprint._inBatch
         if not blueprint._isCheckable or blueprint._isNonBlocking or not blueprint._inBatch:
             continue
 
@@ -59,7 +60,7 @@ def batch(prod, env, dev=False, verbose=False):
             pass  #TODO: Raise an error
 
     if traceback:
-        log = "\nErrors found during execution of {0}'s {1} blueprints:\n".format(prod, env)
+        log = "\nErrors found during execution of {0}'s {1} blueprints:\n".format(context, env)
         log += '-'*len(log) + '\n'
 
         for blueprintName, result in traceback:

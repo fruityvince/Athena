@@ -20,7 +20,7 @@ class Athena(QtWidgets.QMainWindow):
 
     The Athena is a tool made to execute conformity processes to check/fix errors based on the current software or OS, 
     it read the loaded python packages to find all thoses who follow the implemented convention. 
-    In theses packages it will find all prods and by parsing the module it will load all envs from the right software. 
+    In theses packages it will find all contexts and by parsing the module it will load all envs from the right software. 
     Theses modules will be loaded and the blueprint retrieved from the `blueprints` variable in it.
 
     All checks have to inherit from the Process class from Athena.AtCore, they can be overrided on blueprint level using
@@ -32,15 +32,15 @@ class Athena(QtWidgets.QMainWindow):
 
     """
 
-    def __init__(self, prod=None, env=None, displayMode=AtConstants.AVAILABLE_DISPLAY_MODE[0], dev=False, verbose=False):
+    def __init__(self, context=None, env=None, displayMode=AtConstants.AVAILABLE_DISPLAY_MODE[0], dev=False, verbose=False):
         """ Initialise the Athena tool by loading ressources, getting register and all other data for ui.
 
         Parameters
         ----------
-        prod: str, optional
-            Prod name to setup at launch. If it does not exist, fallback to first prod of the list. (default: None)
+        context: str, optional
+            Context name to setup at launch. If it does not exist, fallback to first context of the list. (default: None)
         env: str, optional
-            Env to setup at default. If it does not exist, fallback to first env of the current prod. (default: None)
+            Env to setup at default. If it does not exist, fallback to first env of the current context. (default: None)
         displayMode: str, optional
             Setup the blueprint's display mode at launch (default: 'blueprint')
         mode: str, optional
@@ -60,7 +60,7 @@ class Athena(QtWidgets.QMainWindow):
         self.blueprints = {}
 
         self.verbose = verbose
-        self.configuration = {'prod': prod, 'env': env}
+        self.configuration = {'context': context, 'env': env}
 
         self.canClose = True
         
@@ -71,7 +71,7 @@ class Athena(QtWidgets.QMainWindow):
         self.setupUi()
         self.connectUi()
 
-        self.setup_prod()
+        self.setup_context()
 
         self.resize(*getSizeFromScreen())
         self.setWindowTitle('{0} - {1}'.format(AtConstants.PROGRAM_NAME, self.software.capitalize()))
@@ -136,11 +136,11 @@ class Athena(QtWidgets.QMainWindow):
         # self.support_QAction = QtWidgets.QAction(self.resourcesManager.get('support.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), "Support Project", self.help_QMenu)
         # self.help_QMenu.addAction(self.support_QAction)
 
-        # -- Prod & Environment Toolbar
+        # -- Context & Environment Toolbar
         self.environment_toolbar = QtWidgets.QToolBar('Environment', self)
 
-        self.prods_QComboBox = QtWidgets.QComboBox(self)
-        self.environment_toolbar.addWidget(self.prods_QComboBox)
+        self.contexts_QComboBox = QtWidgets.QComboBox(self)
+        self.environment_toolbar.addWidget(self.contexts_QComboBox)
 
         self.envs_QComboBox = QtWidgets.QComboBox(self)
         self.environment_toolbar.addWidget(self.envs_QComboBox)
@@ -204,8 +204,8 @@ class Athena(QtWidgets.QMainWindow):
         
         self.orderBy.setExclusive(True)
 
-        # -- Setup prods, the env will be dinamically set according to the data stored in env. (see connectUi)
-        self.setup_prod()
+        # -- Setup contexts, the env will be dinamically set according to the data stored in env. (see connectUi)
+        self.setup_context()
 
         # -- filterProcesses LineEdit
         self.filterProcesses_QLineEdit.setPlaceholderText('Filter Processes...')
@@ -238,8 +238,8 @@ class Athena(QtWidgets.QMainWindow):
 
         self.orderBy.triggered.connect(self.setDisplayMode, QtCore.Qt.UniqueConnection)
 
-        self.prods_QComboBox.currentIndexChanged.connect(self.setup_envs, QtCore.Qt.UniqueConnection)
-        self.prods_QComboBox.currentIndexChanged.emit(self.prods_QComboBox.currentIndex())
+        self.contexts_QComboBox.currentIndexChanged.connect(self.setup_envs, QtCore.Qt.UniqueConnection)
+        self.contexts_QComboBox.currentIndexChanged.emit(self.contexts_QComboBox.currentIndex())
         
         self.envs_QComboBox.currentIndexChanged.connect(self.reload, QtCore.Qt.UniqueConnection)
 
@@ -326,37 +326,37 @@ class Athena(QtWidgets.QMainWindow):
 
         self.statusBar.showMessage('Reload modules: {}'.format(' - '.join([module.__name__.rpartition('.')[-1] for module in modules])), 5000)
 
-    def setup_prod(self):
-        """ Switch the current prod used by the tool. """
+    def setup_context(self):
+        """ Switch the current context used by the tool. """
 
         register = self.register
 
-        with BusyCursor(), BlockSignals([self.prods_QComboBox], block=True):
-            prods_QComboBox = self.prods_QComboBox
+        with BusyCursor(), BlockSignals([self.contexts_QComboBox], block=True):
+            contexts_QComboBox = self.contexts_QComboBox
 
             # Get the current text before clearing the QComboBox and populate it with the right data.
-            currentProd = prods_QComboBox.currentText()
-            prods_QComboBox.clear()
+            currentContext = contexts_QComboBox.currentText()
+            contexts_QComboBox.clear()
 
-            for prod in register.prods:
-                prods_QComboBox.addItem(QtGui.QIcon(register.getProdIcon(prod)), prod)
+            for context in register.contexts:
+                contexts_QComboBox.addItem(QtGui.QIcon(register.getContextIcon(context)), context)
 
-            # Fallback 1: If there is a value in the QComboBox before, switch on the same value for the new prod if exists
-            currentIndex = prods_QComboBox.findText(currentProd)
+            # Fallback 1: If there is a value in the QComboBox before, switch on the same value for the new context if exists
+            currentIndex = contexts_QComboBox.findText(currentContext)
             if currentIndex > -1:
-                prods_QComboBox.setCurrentIndex(currentIndex)
+                contexts_QComboBox.setCurrentIndex(currentIndex)
 
             # Fallback 2: If a default value have been given at init, switch to this value.
             else:
-                defaultText = self.configuration['prod']
+                defaultText = self.configuration['context']
                 if defaultText is not None:
-                    defaultIndex = prods_QComboBox.findText(defaultText)
+                    defaultIndex = contexts_QComboBox.findText(defaultText)
                     if defaultIndex > -1:
-                        prods_QComboBox.setCurrentIndex(defaultIndex)
+                        contexts_QComboBox.setCurrentIndex(defaultIndex)
                     else: 
-                        prods_QComboBox.setCurrentIndex(0)
+                        contexts_QComboBox.setCurrentIndex(0)
 
-        self.prods_QComboBox.currentIndexChanged.emit(self.prods_QComboBox.currentIndex())
+        self.contexts_QComboBox.currentIndexChanged.emit(self.contexts_QComboBox.currentIndex())
 
     def setup_envs(self, index):
         """ Setup the current env for the tool to display processes.
@@ -368,7 +368,7 @@ class Athena(QtWidgets.QMainWindow):
         
         notes:
         ------
-            If the method is called after prod changed and current env also exist in the new prod, it will stay on the same env.
+            If the method is called after context changed and current env also exist in the new context, it will stay on the same env.
         """
 
         register = self.register
@@ -380,19 +380,19 @@ class Athena(QtWidgets.QMainWindow):
 
             envs_QComboBox = self.envs_QComboBox
 
-            # Get the prod from in prods QComboBox from index given by signal
-            prod = self.prods_QComboBox.itemText(index)
-            if not prod: 
+            # Get the context from in contexts QComboBox from index given by signal
+            context = self.contexts_QComboBox.itemText(index)
+            if not context: 
                 return
 
             # Get the current text before clearing the QComboBox and populate it with the right data.
             currentEnv = envs_QComboBox.currentText()
             envs_QComboBox.clear()
 
-            for env in register.getEnvs(prod):
-                envs_QComboBox.addItem(QtGui.QIcon(register.getEnvIcon(prod, env)), env)
+            for env in register.getEnvs(context):
+                envs_QComboBox.addItem(QtGui.QIcon(register.getEnvIcon(context, env)), env)
 
-            # Fallback 1: If there is a value in the QComboBox before, switch on the same value for the new prod if exists
+            # Fallback 1: If there is a value in the QComboBox before, switch on the same value for the new context if exists
             currentIndex = envs_QComboBox.findText(currentEnv)
             if currentIndex > -1 and currentIndex <= envs_QComboBox.count():
                 envs_QComboBox.setCurrentIndex(currentIndex)
@@ -416,9 +416,9 @@ class Athena(QtWidgets.QMainWindow):
         self.processes_ProcessesScrollArea.refreshDisplay()
 
     def getBlueprints(self):
-        """ Get the blueprint from the register from current prod and env. """
+        """ Get the blueprint from the register from current context and env. """
 
-        return  self.register.getBlueprints(self.prods_QComboBox.currentText(), self.envs_QComboBox.currentText(), forceReload=self.dev)
+        return  self.register.getBlueprints(self.contexts_QComboBox.currentText(), self.envs_QComboBox.currentText(), forceReload=self.dev)
 
 
 # View
@@ -599,12 +599,13 @@ class ProcessWidget(QtWidgets.QWidget):
         self.resourcesManager = AtUtils.RessourcesManager(__file__, backPath='..{0}ressources'.format(os.sep), key=AtConstants.PROGRAM_NAME)
         
         self.blueprint = blueprint
+        self.options = blueprint._options
         self.name = blueprint._name
         self.docstring = blueprint._docstring
+        self.isEnabled = blueprint._isEnabled
         self.isCheckable = blueprint._isCheckable
         self.isFixable = blueprint._isFixable
         self.hasTool = blueprint._hasTool
-        self.isOptional = blueprint._isOptional
         self.isNonBlocking = blueprint._isNonBlocking
 
         self.status = Status.DEFAULT
@@ -680,7 +681,7 @@ class ProcessWidget(QtWidgets.QWidget):
         """ Setup each widget that constitue the ProcessWidget. """
 
         # -- Enable CheckBox
-        self.enable_QCheckBox.setChecked(not self.isOptional)
+        self.enable_QCheckBox.setChecked(self.isEnabled)
 
         # -- Process Name Display PushButton
         # self.name_QLabel.setButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
@@ -1311,12 +1312,15 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
             if not process.status.isFail and process.status is not Status.EXCEPTION:
                 continue
 
-            if process.blueprint.isFixable and process.isChecked() and (process.isVisible() or not self.parent.canClose):
+            if process.isFixable and process.isChecked() and (process.isVisible() or not self.parent.canClose):
                 self.ensureWidgetVisible(process)
                 process.execFix()
 
         self.parent.searchAndProgress_QStackedLayout.setCurrentIndex(0)
         self.parent.generalProgress_QProgressbar.reset()
+
+        if self.register.getData('parameters').get('recheck', False):
+            self.runAllCheck()
 
     def buildWidgets(self):
         """" Create the new widget and setup them.
@@ -1417,7 +1421,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         """ Reset all Process Widget check state in the scroll area """
 
         for process in self.processes.values():
-            process.setChecked(not process.blueprint.isOptional)
+            process.setChecked(process.blueprint.isEnabled)
 
     def filterProcesses(self, text):
         """ Allow to filter the list of processes by hiding those who didn't match with the given string string.

@@ -205,7 +205,7 @@ class Register(object):
     """Register class that contain and manage all blueprints for all available environments.
 
     At initialization the register will get all data it found and store them. It will also give easy accessible data
-    to work with like prods and software.
+    to work with like contexts and software.
     """
 
     def __init__(self, verbose=False):
@@ -223,21 +223,20 @@ class Register(object):
 
         self._data = {}
         self._packages = {}
-        self._prods = []
+        self._contexts = []
 
         self._blueprints = []
 
+        self._context = None
+        self._env = None
+
         self._setup()
 
-        self._prod = None
-        self._env = None
-        self._module = None
-
     def __repr__(self):
-        return "<{0} {1} - prod: {2}, env: {3}>".format(
+        return "<{0} {1} - context: {2}, env: {3}>".format(
             self.__class__.__name__,
             self._software.capitalize(),
-            self._prod,
+            self._context,
             self._env,
         )
 
@@ -266,10 +265,10 @@ class Register(object):
         -----
         Will compare:
             - software
-            - _data.keys()  # (prods)
-            - prods
+            - _data.keys()  # (contexts)
+            - contexts
             - blueprints.keys()  # (index of blueprints)
-            - prod  # (Current targeted prod)
+            - context  # (Current targeted context)
             - env  # (Current targeted env)
         """
 
@@ -278,10 +277,9 @@ class Register(object):
 
         return all([
             self._software == other.software,
-            self._data.keys() == other._data.keys(),
-            self._prods == other._prods,
+            self._contexts == other._contexts,
             self._blueprints == other.blueprints,
-            self._prod == other.prod,
+            self._context == other.context,
             self._env == other.env
         ])
 
@@ -298,20 +296,16 @@ class Register(object):
         return self._blueprints
 
     @property
-    def prods(self):
-        return self._prods
+    def contexts(self):
+        return self._contexts
 
     @property
-    def prod(self):
-        return self._prod
+    def context(self):
+        return self._context
 
     @property
     def env(self):
         return self._env
-
-    @property
-    def module(self):
-        return self._module
 
     def reload(self):
         """Reload data for the register instance.
@@ -325,7 +319,7 @@ class Register(object):
         """
 
         self._data = {}
-        self._prods = []
+        self._contexts = []
 
         self._setup()
 
@@ -333,8 +327,8 @@ class Register(object):
         """Setup data for the register instance.
         
         Setup the register internal data from packages.
-        The data contain all informations needed to make the tool work like each prods, envs, blueprints and processes.
-        Here only the prods and envs are retrieved. To get blueprints, getBlueprints should be called.
+        The data contain all informations needed to make the tool work like each contexts, envs, blueprints and processes.
+        Here only the contexts and envs are retrieved. To get blueprints, getBlueprints should be called.
 
         Parameters
         -----------
@@ -344,54 +338,54 @@ class Register(object):
 
         self._packages = packages = AtUtils.getPackages()
 
-        for prod, packageData in packages.items():
+        for context, packageData in packages.items():
             envs = AtUtils.getEnvs(packageData['import'], software=self._software)
             
-            self._data[prod] = packageData
-            self._data[prod]['envs'] = envs
+            self._data[context] = packageData
+            self._data[context]['envs'] = envs
 
-        self._prods = packages.keys()
+        self._contexts = packages.keys()
     
-    def getEnvs(self, prod):
-        """Return envs stored in the given prod.
+    def getEnvs(self, context):
+        """Return envs stored in the given context.
         
-        This will return list of envs from the given prod. Especially useful to feed a widget.
+        This will return list of envs from the given context. Especially useful to feed a widget.
 
         Parameters
         -----------
-        prod: str
-            Prod from which return stored envs.
+        context: str
+            Context from which return stored envs.
         verbose: bool
             Define if the function should log informations about its process. (default: False)
         
         Returns
         -------
         list
-            List of envs for the given prod.
+            List of envs for the given context.
         """
 
-        # First, get the prod in data
-        prodData = self._data.get(prod, None)
-        if prodData is None:
+        # First, get the context in data
+        contextData = self._data.get(context, None)
+        if contextData is None:
             return []
 
-        # Then, get the env in the precedently queried prod dict.
-        envData = prodData.get('envs', None)
+        # Then, get the env in the precedently queried context dict.
+        envData = contextData.get('envs', None)
         if envData is None:
             return []
 
         return envData.keys()
 
-    def getBlueprints(self, prod, env, forceReload=False):
-        """Get the blueprint object for the given prod and env.
+    def getBlueprints(self, context, env, forceReload=False):
+        """Get the blueprint object for the given context and env.
         
-        Try to retrieve the blueprints for the specified env in the specified prod. If there is already a blueprints,
+        Try to retrieve the blueprints for the specified env in the specified context. If there is already a blueprints,
         don't re-instanciate them.
 
         Parameters
         -----------
-        prod: str
-            Prod from which retrieve the blueprint in the given env.
+        context: str
+            Context from which retrieve the blueprint in the given env.
         env: str
             Env from which get the blueprint object.
         forceReload: bool
@@ -400,40 +394,40 @@ class Register(object):
         Returns
         -------
         dict
-            Dict containing all blueprint objects for the given prod env.
+            Dict containing all blueprint objects for the given context env.
         """
 
-        assert prod in self._prods, '"{0}" Are not registered yet in this Register'.format(prod)
+        assert context in self._contexts, '"{0}" Are not registered yet in this Register'.format(context)
 
         self._blueprints = []
-        self._prod = prod
+        self._context = context
 
-        # Get the dict for the specified prod in self._data
-        prodData = self._data.get(prod, None)
-        if prodData is None:
+        # Get the dict for the specified context in self._data
+        contextData = self._data.get(context, None)
+        if contextData is None:
             return {}
 
-        # Get the dict for all envs in self._data[prod]
-        envsData = prodData.get('envs', None)
+        # Get the dict for all envs in self._data[context]
+        envsData = contextData.get('envs', None)
         if envsData is None:
             return {}
 
-        # Get the dict for the specified env in self._data[prod]['envs']
+        # Get the dict for the specified env in self._data[context]['envs']
         envData = envsData.get(env, None)
         if envData is None:
             return {}
         self._env = env
 
-        # Get the blueprint in self._data[prod]['envs'][env]. If one is found, return it.  #TODO: It seems there is an error
+        # Get the blueprint in self._data[context]['envs'][env]. If one is found, return it.  #TODO: It seems there is an error
         blueprints = envData.get('blueprints', None)
         if blueprints is not None and not forceReload:
             return blueprints['objects']
 
         # Get the env module to retrieve the blueprint from.
-        self._module = envModule = envData.get('module', None)
+        envModule = envData.get('module', None)
         if envModule is None:
             
-            # Get the string path to the env package in self._data[prod]['envs'][env]['import']
+            # Get the string path to the env package in self._data[context]['envs'][env]['import']
             envStr = envData.get('import', None)
             if envStr is None:
                 return {}
@@ -449,8 +443,7 @@ class Register(object):
             reload(envModule)
 
         # Try to access the `blueprints` variable in the env module
-        blueprints = getattr(envModule, 'blueprints', {})
-        options = getattr(envModule, 'options', {})
+        blueprints = getattr(envModule, 'register', {})
         ID.flush()
 
         # Generate a blueprint object for each process retrieved in the `blueprint` variable of the env module.
@@ -467,7 +460,6 @@ class Register(object):
         envData['blueprints'] = {
                 'data': blueprints,
                 'objects': blueprintObjects,
-                'options': options
         }
 
         return self._blueprints
@@ -483,28 +475,28 @@ class Register(object):
 
     def getData(self, data):
 
-        if not self._prod or not self._env:
+        if not self._context or not self._env:
             return None
 
-        return self._data[self._prod]['envs'][self._env].get(data, None)
+        return self._data[self._context]['envs'][self._env].get(data, None)
 
     def setData(self, key, data):
 
         assert key not in ('data', 'objects'), 'Key "{0}" is already used by the register for built-in data.'.format(key)
 
-        self._data[self._prod]['envs'][self._env][key] = data
+        self._data[self._context]['envs'][self._env][key] = data
 
     def setVerbose(value):
 
         self.verbose = value
 
-    def getProdIcon(self, prod):
+    def getContextIcon(self, context):
 
-        return self._packages.get(prod, {}).get('icon', None)
+        return self._packages.get(context, {}).get('icon', None)
 
-    def getEnvIcon(self, prod, env):
+    def getEnvIcon(self, context, env):
 
-        return self._data[prod]['envs'][env].get('icon', None)
+        return self._data[context]['envs'][env].get('icon', None)
 
 class Blueprint(object):
     """This object will manage a single process instance to be used through an ui.
@@ -534,6 +526,7 @@ class Blueprint(object):
         self._module = None
         self._process = self.getProcess(initArgs, initKwargs)
         self._links = {AtConstants.CHECK: [], AtConstants.FIX: [], AtConstants.TOOL: []}
+        self._options = blueprint.get('options', {})
 
         self._name = AtUtils.camelCaseSplit(self._process._name)
         self._docstring = self.createDocstring()
@@ -542,15 +535,16 @@ class Blueprint(object):
         self._fix = None
         self._tool = None
 
-        self._isOptional = False
-        self._isNonBlocking = False
-        self._isDependant = False
-        self._inUi = True
-        self._inBatch = True
+        self._isEnabled = True
 
         self._isCheckable = False
         self._isFixable = False
         self._hasTool = False
+
+        self._inUi = True
+        self._inBatch = True
+
+        self._isNonBlocking = False
 
         # setupCore will automatically retrieve the method needed to execute the process. 
         # And also the base variable necessary to define if theses methods are available.
@@ -563,6 +557,10 @@ class Blueprint(object):
         return "<{0} '{1}' object at {2}'>".format(self.__class__.__name__, self._process.__class__.__name__, hex(id(self)))
 
     @property
+    def options(self):
+        return self._options
+
+    @property
     def name(self):
         return self._name
 
@@ -571,24 +569,8 @@ class Blueprint(object):
         return self._docstring
 
     @property
-    def isOptional(self):
-        return self._isOptional
-    
-    @property
-    def isNonBlocking(self):
-        return self._isNonBlocking
-
-    @property
-    def isDependant(self):
-        return self._isDependant
-
-    @property
-    def inUi(self):
-        return self._inUi
-    
-    @property
-    def inBatch(self):
-        return self._inBatch
+    def isEnabled(self):
+        return self._isEnabled
     
     @property
     def isCheckable(self):
@@ -601,6 +583,18 @@ class Blueprint(object):
     @property
     def hasTool(self):
         return self._hasTool
+
+    @property
+    def inUi(self):
+        return self._inUi
+    
+    @property
+    def inBatch(self):
+        return self._inBatch
+
+    @property
+    def isNonBlocking(self):
+        return self._isNonBlocking
         
     def check(self, links=True):
         """This is a wrapper for the process check that will automatically execute it with the right parameters.
@@ -777,9 +771,8 @@ class Blueprint(object):
         if tags & Tag.NO_TOOL:
             self._hasTool = False
 
-        if tags & Tag.OPTIONAL:
-            self._isOptional = True
-            self._isNonBlocking = True
+        if tags & Tag.DISABLED:
+            self._isEnabled = False
 
         if tags & Tag.NON_BLOCKING:
             self._isNonBlocking = True
@@ -896,14 +889,18 @@ class Tag(object):
 
     """
 
-    NO_CHECK        = 1
-    NO_FIX          = 2
-    NO_TOOL         = 4
-    NON_BLOCKING    = 8
-    OPTIONAL        = 16
+    DISABLED        = 1
+
+    NO_CHECK        = 2
+    NO_FIX          = 4
+    NO_TOOL         = 8
+
+    NON_BLOCKING    = 16
+    
     NO_BATCH        = 32
     NO_UI           = 64
     
+    OPTIONAL        = NON_BLOCKING | DISABLED
     DEPENDANT       = NO_CHECK | NO_FIX | NO_TOOL
 
 

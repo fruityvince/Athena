@@ -1,8 +1,8 @@
 PROGRAM_NAME = 'Athena'
 
-VERSION = 'alpha 0.0.1'
+VERSION = '0.0.0-alpha'
 
-AVAILABLE_SOFTWARE = ['maya', 'katana', 'houdini', 'nuke', 'mari']
+AVAILABLE_SOFTWARE = ('maya', 'katana', 'houdini', 'nuke', 'mari')
 
 CHECK = 'check'
 
@@ -10,7 +10,7 @@ FIX = 'fix'
 
 TOOL = 'tool'
 
-AVAILABLE_DISPLAY_MODE = ['Header', 'Category', 'Alphabetically']
+AVAILABLE_DISPLAY_MODE = ('Header', 'Category', 'Alphabetically')
 
 ENV_TEMPLATE = '{package}.{athenaPackage}.{software}.env'
 
@@ -57,9 +57,12 @@ class {ProcessName}(AtCore.Process):
 
 '''
 
-BLUEPRINT_TEMPLATE = {'process': '', 
-					  'arguments': {'': ([], {})},
-					  'tags': [[]], 
-					  'links': [[]]}
+BLUEPRINT_TEMPLATE = {
+	'process': '', 
+	'arguments': {'': ([], {})},
+	'tags': [[]], 
+	'links': [[]],
+	'options': {}
+}
 
 NO_DOCUMENTATION_AVAILABLE = '\nNo documentation available for this process.\n'

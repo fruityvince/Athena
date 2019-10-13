@@ -42,22 +42,29 @@ def getEnvs(package, software='standalone', verbose=False):
     availableEnvs = {}
     packagePath, athenaPackage = package.rsplit('.', 1)
 
-    envPackage = AtConstants.ENV_TEMPLATE.format(package=packagePath, 
-                                               athenaPackage=athenaPackage,
-                                               software=software)  # {path}.{program}_{prod}.{software}.env
+    # {path}.{program}_{prod}.{software}.env
+    envPackageStr = AtConstants.ENV_TEMPLATE.format(
+        package=packagePath, 
+        athenaPackage=athenaPackage,
+        software=software
+    )
 
-    module = importFromStr(envPackage)
-    if not module:
+    envPackage = importFromStr(envPackageStr)
+    if not envPackage:
         return
 
-    for importer, name, _ in pkgutil.iter_modules(module.__path__):
-        env = '{}.{}'.format(envPackage, name)
-        icon = os.path.join(importer.path, '{0}.png'.format(name))
+    for importer, name, _ in pkgutil.iter_modules(envPackage.__path__):
+        env = '{0}.{1}'.format(envPackageStr, name)
+        path = importer.path
+        icon = os.path.join(path, '{0}.png'.format(name))
+        envModule = importFromStr(env)
 
         availableEnvs[name] = {
             'import': env,
-            'module': importFromStr(env),
-            'icon': icon if os.path.isfile(icon) else None
+            'module': envModule,
+            'path': path,
+            'icon': icon if os.path.isfile(icon) else None,
+            'parameters': getattr(envModule, 'parameters', {})
         }
 
     return availableEnvs
