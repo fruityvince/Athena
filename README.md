@@ -1,13 +1,10 @@
 # What is Athena ?
 
 Athena is an **API** and a **Tool** made to create and manage Sanity Check and Fix process in Python.
-It allow the user to define a list of process to execute in a specific order with some sort of parameter to ensure a minimum Quality/Sanity in a specific environment.
+It allow the user to define a list of process to execute in a specific order with some sort of parameters to ensure a minimum Quality/Sanity in a specific environment.
 
 The built-in tool works with a lot of the most used CG software that have a python interpreter like Autodesk Maya, The Foundry Katana, Mari, Nuke, SideFx Houdini etc... (Feel free to test it in another software)
 Off course the tool also works as a standalone tool into Linux, MacOs and Windows.
-
-
-# How it works ?
 
 
 # How to setup an Athena package ?
@@ -84,6 +81,66 @@ This decorator allow you to decorate a Process to handle many things:
 - Reset `toCheck`, `toFix` and `data` attributes to their default value.
 - Set the `isChecked` value to `True` after the `check` and `False` after the `fix`.
 
+###### e.g.
+```python
+from Athena import AtCore
+
+class {ProcessName}(AtCore.Process):
+	"""This docstring will be retrieved to be used as a help documentation. (included in Athena tool)
+	You should explain clearly what the check, fix and other overrided method will do.
+
+	Check: 
+		Explain clearly what this check will do.
+
+	Fix: 
+		Explain clearly how the fix will correst the errors.
+
+	Misc: 
+		- Here you can specify if there is specificities to know before using this check
+		- You can also give details on known issues.
+	"""
+
+	def __init__(self):
+		""" __init__ docstring """
+
+		pass
+
+	def check(self):
+		""" check docstring """
+
+		self.clearFeedback()
+      toFix = []
+      
+      toCheck = range(50)
+      baseValue = 100./(len(toCheck) or 0)
+      for i, each in enumerate(toCheck):
+         self.setProgressValue(i*baseValue)
+         
+         # Check what you want, do you condition ...
+         toFix.append(each)
+         
+      self.toFix = toFix
+      
+      self.isChecked = True
+      return toFix
+      
+	def fix(self):
+		""" fix docstring """
+
+		if not self.isChecked:
+         self.check()
+         
+      for each in self.toFix:
+         # fix the problem
+         
+      self.isChecked = False
+
+	def tool(self):
+		""" tool docstring """
+      
+      return myUi()
+
+```
 
 # How to write an env file ?
 
