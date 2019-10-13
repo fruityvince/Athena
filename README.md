@@ -85,7 +85,7 @@ This decorator allow you to decorate a Process to handle many things:
 ```python
 from Athena import AtCore
 
-class {ProcessName}(AtCore.Process):
+class ProcessExample1(AtCore.Process):
     """This docstring will be retrieved to be used as a help documentation. (included in Athena tool)
     You should explain clearly what the check, fix and other overrided method will do.
 
