@@ -33,10 +33,6 @@ def getEnvs(package, software='standalone', verbose=False):
     dict
         Return a dict containing all envs for the given package and software.
         The key is the env and the value is a dict containing the imported module object for the env and its str path.
-        Dict formatting:
-            {str: {'module': object,
-                   'str': str},
-            ...}
     """
 
     availableEnvs = {}
@@ -86,11 +82,6 @@ def getPackages(verbose=False):
     dict
         Return a dict containing all package that match the pattern of the tool
         The key is the prod and the value is a dict containing the module object and its str path.
-        Dict formatting:
-            {str: {'module': object,
-                   'str': str},
-            ...}
-
     """
 
     packages = {}
@@ -259,7 +250,7 @@ def getOverriddedMethods(instance, cls):
 
     Returns
     --------
-    str
+    list
         Return a list containing all method that have been overridden from the instance in the given class.
     """
 
@@ -350,7 +341,6 @@ def logHeader(message):
     ))
 '''
 
-#FIXME: It seems that the RessourceManager re-instantiate new icon everytime
 class RessourcesManager(object):
     #TODO: Document this class
 

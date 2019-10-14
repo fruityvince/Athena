@@ -9,14 +9,18 @@ from Athena import AtConstants
 
 
 class Process(object):
-    """
-    
+    """Abstract class from which any Athena User Process have to inherit.
+
+    The Process object define default instance attributes for user to use and that are managed through the `automatic`
+    decorator.
+    It also comes with some methods to manage the internal feedback and the potentially connected QProgressbar.
+    There is 3 not implemented methods to override if needed (`check`, `fix` and `tool`)
     """
 
     def __new__(cls, *args, **kwargs):
         """Generate a new class instance and setup its default attributes.
         
-        The base class `Process` can't be instanciated because it is an abstract class made to inherited
+        The base class `Process` can't be instanciated because it is an abstract class made to be inherited
         and overrided by User Processes.
         """
 
@@ -61,10 +65,12 @@ class Process(object):
 
     @property
     def name(self):
+        """Return the process name, default name is class name"""
         return self._name
 
     @name.setter
     def name(self, value):
+        """Define the process name """
         self._name = str(value)
 
     def setProgressValue(self, value, text=None):
@@ -82,9 +88,8 @@ class Process(object):
             return
 
         assert isinstance(value, numbers.Number), 'Argument `value` is not numeric'
-        value = float(value)  # Ensure that value is of type float.
         
-        self._progressbar.setValue(value)
+        self._progressbar.setValue(float(value))
         
         if text and text != self._progressbar.text():
             self._progressbar.setFormat(AtConstants.PROGRESSBAR_FORMAT.format(text))
@@ -233,6 +238,8 @@ class Register(object):
         self._setup()
 
     def __repr__(self):
+        """Return the representation of the Register"""
+
         return "<{0} {1} - context: {2}, env: {3}>".format(
             self.__class__.__name__,
             self._software.capitalize(),
@@ -241,12 +248,12 @@ class Register(object):
         )
 
     def __nonzero__(self):
-        """ Allow to interpret this object as a boolean.
+        """Allow to interpret this object as a boolean.
         
         Returns:
         bool
             True if there is any blueprint, False otherwise.
-        """ #TODO: I forget the term
+        """
 
         return bool(self._blueprints)
 
@@ -265,7 +272,6 @@ class Register(object):
         -----
         Will compare:
             - software
-            - _data.keys()  # (contexts)
             - contexts
             - blueprints.keys()  # (index of blueprints)
             - context  # (Current targeted context)
@@ -275,36 +281,42 @@ class Register(object):
         if not isinstance(other, self.__class__):
             return False
 
-        return all([
+        return all((
             self._software == other.software,
             self._contexts == other._contexts,
             self._blueprints == other.blueprints,
             self._context == other.context,
             self._env == other.env
-        ])
+        ))
 
     @property
     def data(self):
+        """Get the Register internal data"""
         return self._data
 
     @property
     def software(self):
+        """Get the Register software"""
         return self._software
 
     @property
     def blueprints(self):
+        """Get all Register blueprints"""
         return self._blueprints
 
     @property
     def contexts(self):
+        """Get all Register contexts"""
         return self._contexts
 
     @property
     def context(self):
+        """Get the current context the register are pointing on"""
         return self._context
 
     @property
     def env(self):
+        """Get the current env the register are pointing on"""
         return self._env
 
     def reload(self):
@@ -319,7 +331,6 @@ class Register(object):
         """
 
         self._data = {}
-        self._contexts = []
 
         self._setup()
 
@@ -355,8 +366,6 @@ class Register(object):
         -----------
         context: str
             Context from which return stored envs.
-        verbose: bool
-            Define if the function should log informations about its process. (default: False)
         
         Returns
         -------
@@ -380,10 +389,10 @@ class Register(object):
         """Get the blueprint object for the given context and env.
         
         Try to retrieve the blueprints for the specified env in the specified context. If there is already a blueprints,
-        don't re-instanciate them.
+        don't re-instanciate them if forceReload is `False`.
 
         Parameters
-        -----------
+        ----------
         context: str
             Context from which retrieve the blueprint in the given env.
         env: str
@@ -420,7 +429,7 @@ class Register(object):
 
         # Get the blueprint in self._data[context]['envs'][env]. If one is found, return it.  #TODO: It seems there is an error
         blueprints = envData.get('blueprints', None)
-        if blueprints is not None and not forceReload:
+        if blueprints is not None and not forceReload: # If not forceReload, return the existing blueprints. #FIXME: self._blueprints is empty outside dev
             return blueprints['objects']
 
         # Get the env module to retrieve the blueprint from.
@@ -465,15 +474,35 @@ class Register(object):
         return self._blueprints
 
     def reloadBlueprintsModules(self):
+        """Reload the Blueprints's source modules to reload the Processes in it
+        
+        Should better be called in dev mode to simplify devellopment and test of a new Process.
 
-        modules = list(set([blueprint._module for blueprint in  self._blueprints]))
+        Returns
+        -------
+        list(module, ...)
+            Lis of all reloaded modules.
+        """
 
+        modules = list(set([blueprint._module for blueprint in self._blueprints]))
         for module in modules:
             reload(module)
 
         return modules
 
     def getData(self, data):
+        """Get a specific data in the register current context and env.
+
+        Parameters
+        ----------
+        data: str
+            The key of the data to get in the register at [self._context]['envs'][self._env]
+
+        Returns
+        -------
+        type or NoneType
+            Data queried if exist, else NoneType.
+        """
 
         if not self._context or not self._env:
             return None
@@ -481,20 +510,62 @@ class Register(object):
         return self._data[self._context]['envs'][self._env].get(data, None)
 
     def setData(self, key, data):
+        """Set the current data at the given key of the register's current env dict.
 
-        assert key not in ('data', 'objects'), 'Key "{0}" is already used by the register for built-in data.'.format(key)
+        Parameters
+        ----------
+        key: type (immutable)
+            The key for which to add the data in the register current context and env dict.
+        data: type
+            The data to store in the register's current env dict of the current context.
+
+        Returns
+        -------
+        Register
+            Return the instance of the object to make object fluent.
+        """
 
         self._data[self._context]['envs'][self._env][key] = data
 
-    def setVerbose(value):
+        return self
 
-        self.verbose = value
+    def setVerbose(self, value):
+        """Set the Verbose state.
+
+        Parameters
+        ----------
+        value: bool
+            True or False to enable or disable the verbose
+
+        Returns
+        -------
+        Register
+            Return the instance of the object to make object fluent.
+        """
+
+        self.verbose = bool(value)
+
+        return self
 
     def getContextIcon(self, context):
+        """Get the icon for the given context
+
+        Returns
+        -------
+        str
+            Return the icon of the queried context.
+        """
 
         return self._packages.get(context, {}).get('icon', None)
 
     def getEnvIcon(self, context, env):
+        """Get the icon for the given env of the given context
+
+        Returns
+        -------
+        str
+            Return the icon of the queried env of the given context.
+        """
 
         return self._data[context]['envs'][env].get('icon', None)
 
@@ -552,76 +623,96 @@ class Blueprint(object):
         self.setupTags()
 
     def __repr__(self):
-        """Return the representation of the object if it is printed."""
+        """Return the representation of the object."""
 
         return "<{0} '{1}' object at {2}'>".format(self.__class__.__name__, self._process.__class__.__name__, hex(id(self)))
 
     @property
     def options(self):
+        """Get the Blueprint's options"""
         return self._options
 
     @property
     def name(self):
+        """Get the Blueprint's name"""
         return self._name
 
     @property
     def docstring(self):
+        """Get the Blueprint's docstring"""
         return self._docstring
 
     @property
     def isEnabled(self):
+        """Get the Blueprint's enabled state"""
         return self._isEnabled
     
     @property
     def isCheckable(self):
+        """Get the Blueprint's checkable state"""
         return self._isCheckable
 
     @property
     def isFixiable(self):
+        """Get the Blueprint's fixable state"""
         return self._isFixiable
 
     @property
     def hasTool(self):
+        """Get if the Blueprint's have a tool"""
         return self._hasTool
 
     @property
     def inUi(self):
+        """Get if the Blueprint should be run in ui"""
         return self._inUi
     
     @property
     def inBatch(self):
+        """Get if the Blueprint should be run in batch"""
         return self._inBatch
 
     @property
     def isNonBlocking(self):
+        """Get the Blueprint's non blocking state"""
         return self._isNonBlocking
         
     def check(self, links=True):
         """This is a wrapper for the process check that will automatically execute it with the right parameters.
 
+        Parameters
+        ----------
+        links: bool
+            Should the wrapper launch the connected links or not.
+
         Returns
         -------
         type
-            The value returned by the check.
+            The check feedback.
         bool
-            True if the check return an error, False otherwise.
+            True if the check have any feedback, False otherwise.
         """
 
         if self._check is None:
             return None, None
         
         args, kwargs = self.getArguments(AtConstants.CHECK)
-        returnValue = self._check(*args, **kwargs)
+        returnValue = self._check(*args, **kwargs)  #TODO: Not used !!
 
         result = self.filterResult(self._process._feedback)
 
         if links:
-            self.runLinks(AtConstants.CHECK)  #FIXME: Links seems to be launched in batch even if they are NO_UI.
+            self.runLinks(AtConstants.CHECK)
         
         return result, bool(result)
 
     def fix(self, links=True):
         """This is a wrapper for the process fix that will automatically execute it with the right parameters.
+        
+        Parameters
+        ----------
+        links: bool
+            Should the wrapper launch the connected links or not.
 
         Returns
         -------
@@ -633,15 +724,20 @@ class Blueprint(object):
             return None
 
         args, kwargs = self.getArguments(AtConstants.FIX)
-        result = self._fix(*args, **kwargs)
+        returnValue = self._fix(*args, **kwargs)
 
         if links:
             self.runLinks(AtConstants.FIX)
 
-        return result
+        return returnValue
 
     def tool(self, links=True):
         """This is a wrapper for the process tool that will automatically execute it with the right parameters.
+
+        Parameters
+        ----------
+        links: bool
+            Should the wrapper launch the connected links or not.
 
         Returns
         -------
@@ -704,7 +800,7 @@ class Blueprint(object):
         ----------
         args: list
             List of all args expected by the process __init__ method.
-        kwargs: list
+        kwargs: dict
             dict of all kwargs expected by the process __init__ method.
 
         Returns
@@ -726,16 +822,10 @@ class Blueprint(object):
         return processClass(*args, **kwargs)
 
     def setupCore(self):
-        """Setup the all data for the wrapping method (check, fix...) and bool to know if isCheckable, isFixable...
+        """Setup all data for the wrapping method (check, fix, tool...) and bool to know if isCheckable, isFixable, 
+        hasTool...
 
         Retrieve all overridden methods and set the instance attributes with the retrieved data.
-
-        Parameters
-        ----------
-        args: list
-            List of all args expected by the process __init__ method.
-        kwargs: list
-            dict of all kwargs expected by the process __init__ method.
         """
         
         overriddenMethods = AtUtils.getOverriddedMethods(self._process.__class__, Process)
@@ -755,12 +845,15 @@ class Blueprint(object):
     def setupTags(self):
         """Setup the tags used by this process
 
-        This method will setup the tags from the list given in the env module to affect the process comportment.
+        This method will setup the tags from the Tags given in the env module to affect the process behaviour.
         """
 
         tags = self.blueprint.get('tags', None)
         if tags is None:
             return
+
+        if tags & Tag.DISABLED:
+            self._isEnabled = False
 
         if tags & Tag.NO_CHECK:
             self._isCheckable = False
@@ -770,9 +863,6 @@ class Blueprint(object):
 
         if tags & Tag.NO_TOOL:
             self._hasTool = False
-
-        if tags & Tag.DISABLED:
-            self._isEnabled = False
 
         if tags & Tag.NON_BLOCKING:
             self._isNonBlocking = True
@@ -784,7 +874,22 @@ class Blueprint(object):
             self._inUi = False
 
     def resolveLinks(self, linkedObjects, check=AtConstants.CHECK, fix=AtConstants.FIX, tool=AtConstants.TOOL):
-        """  """
+        """Resolve the links between the given objects and the current Blueprint's Process.
+
+        This need to be called with an ordered list of Objects (Blueprint or custom object) with None for blueprints to skip.
+        (e.g. to skip those that should not be linked because they dont have to be run in batch or ui.)
+
+        Parameters
+        ----------
+        linkedObjects: list(object, ...)
+            List of all objects used to resolve the current Blueprint links. Objects to skip have to be replace with `None`.
+        check: str
+            Name of the method to use as check link on the given objects.
+        fix: str
+            Name of the method to use as fix link on the given objects.
+        tool: str
+            Name of the method to use as tool link on the given objects.
+        """
 
         self._links = {AtConstants.CHECK: [], AtConstants.FIX: [], AtConstants.TOOL: []}
 
@@ -798,9 +903,6 @@ class Blueprint(object):
         assert all([hasattr(link, '__iter__') for link in links]), 'Links should be of type tuple(int, str, str)'
         for link in links:
             index, _driver, _driven = link
-
-            # Allow to prevent error when the key does not exist, this could happen when the target is available in ui or batch only.
-            #FIXME: Error here when can not link
             if linkedObjects[index] is None:
                 continue
 
@@ -816,14 +918,20 @@ class Blueprint(object):
 
         Parameters
         ----------
-        progressbar: QProgressBar
+        progressbar: QtWidgets.QProgressBar
             QProgressBar object to connect to the process to display check and fix progression.
         """
 
         self._process._progressbar = progressbar
 
     def createDocstring(self):
-        """Generate the Blueprint doc from Process docstring and data in the `_docFormat_` variable."""
+        """Generate the Blueprint doc from Process docstring and data in the `_docFormat_` variable.
+
+        Returns
+        -------
+        str
+            Return the formatted docstring to be more readable and also display the path of the process.
+        """
 
         docstring = self._process.__doc__ or AtConstants.NO_DOCUMENTATION_AVAILABLE
         docstring += '\n {0} '.format(self.processStr)
@@ -842,7 +950,7 @@ class Blueprint(object):
         ----------
         result: tuple
             Tuple containing tuple with a str for title and list of errors.
-            => tuple(tuple(str, list), ...)
+            > tuple(tuple(str, list, `list`, `str`), ...)
 
         Returns
         -------
@@ -870,23 +978,24 @@ class Tag(object):
 
     Attributes
     ----------
-    OPTIONAL: str
-       This tag will set a check optional, an optional process is not checked by default and will.
+    DISABLED: str
+        Define if a process should be disabled (by default it is enable)
     NO_CHECK: str
         This tag will remove the check of a process, it will force the isCheckable to False in blueprint.
     NO_FIX: str
         This tag will remove the fix of a process, it will force the isFixable to False in blueprint.
     NO_TOOL: str
         This tag will remove the tool of a process, it will force the hasTool to False in blueprint.
-    DEPENDANT: str
-        A dependent process need links to be run through another process.
     NON_BLOCKING: str
         A non blocking process will raise a non blocking error, its error is ignored.
-    BACTH_ONLY: str
-        This process will only be run in batch mode.
+    NO_BATCH: str
+        This process will only be executed in ui.
     NO_UI: str
-        This process will only be executed in batch..
-
+        This process will only be executed in batch.
+    OPTIONAL: str
+       This tag will set a check optional, an optional process is not checked by default and will.
+    DEPENDANT: str
+        A dependent process need links to be run through another process.
     """
 
     DISABLED        = 1
@@ -905,6 +1014,7 @@ class Tag(object):
 
 
 class Link(object):
+    """Give access to the AtConstants to simplify the use of the links."""
 
     CHECK = AtConstants.CHECK
     FIX = AtConstants.FIX
