@@ -73,7 +73,7 @@ class Athena(QtWidgets.QMainWindow):
 
         self.setup_context()
 
-        self.resize(*getSizeFromScreen())
+        self.resize(400, 800)
         self.setWindowTitle('{0} - {1}'.format(AtConstants.PROGRAM_NAME, self.software.capitalize()))
         self.setWindowIcon(self.resourcesManager.get('logo.png', AtConstants.PROGRAM_NAME, QtGui.QIcon))  #TODO: Find a logo and add it here.
 
