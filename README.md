@@ -17,7 +17,7 @@ The convention is to have the `Athena_` prefix before the package name.
 3. Create in this package any package you need with the name of a soft in lowercase (`standalone` is also natively supported). see `Athena.AtConstants` module for the currently supported softwares.
 4. In all of theses packages you need an `envs` and `processes` python packages.
 5. Add python module with the name of your env in the `envs` package to start. (If you want, also a `.png` file with the same name)
-6. In the `processes` package you are free to create any module you whant to write your processes. (e.g. Animation, Pipeline, Texturing or whatever you want.)
+6. In the `processes` package you are free to create any module you want to write your processes. (e.g. Animation, Pipeline, Texturing or whatever you want.)
 
 You should have something like:
 ```
@@ -52,7 +52,7 @@ There also are dunder variables like `_docFormat_` which have to be a dict conta
 ## The methods to override:
 
 ###### check
-First in the check method you have to clear the feedback by calling `clearFeedback` method (to prevent have the feedback added everytime you will launche the check again).
+First in the check method you have to clear the feedback by calling `clearFeedback` method (to prevent have the feedback added everytime you will launch the check again).
 Then you are free to retieve/update the data to check and do whatever you need. (Note that you can define all the methods you want. PS: You should not override parent class methods except `check`, `fix` and/or `tool`)
 
 At the end of the check or wherever you will have to add data to fix you will need to call the `addFeedback` method.
@@ -72,7 +72,7 @@ You can either choose to:
 ## What else ?
 
 ###### QProgressBar
-The Process object can ive you access to a QProgressBar (That you will need to connect in you ui using `Athena.AtCore.Blueprint.setProgressbar` method).
+The Process object can give you access to a QProgressBar (That you will need to connect in you ui using `Athena.AtCore.Blueprint.setProgressbar` method).
 If a progress bar is connected to your Process you can use the `Athena.AtCore.Process.setProgressValue` that take first the new progress value and the text to display in the widget.
 
 ###### Athena.AtCore.automatic
