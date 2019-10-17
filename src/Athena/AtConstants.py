@@ -1,6 +1,6 @@
 PROGRAM_NAME = 'Athena'
 
-VERSION = '0.0.0-alpha'
+VERSION = '0.0.0-beta'
 
 AVAILABLE_SOFTWARE = ('maya', 'katana', 'houdini', 'nuke', 'mari')
 
@@ -12,7 +12,7 @@ TOOL = 'tool'
 
 AVAILABLE_DISPLAY_MODE = ('Header', 'Category', 'Alphabetically')
 
-ENV_TEMPLATE = '{package}.{athenaPackage}.{software}.env'
+ENV_TEMPLATE = '{package}.{athenaPackage}.{software}.envs'
 
 PROGRESSBAR_FORMAT = '  %p% - {0}'
 

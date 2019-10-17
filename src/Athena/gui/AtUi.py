@@ -1019,6 +1019,7 @@ class TracebackList(QtWidgets.QTreeWidget):
                 toSelect.extend(data['toSelect'])
             else: 
                 toSelect.append(data)
+        
         AtUtils.softwareSelection(list(set(toSelect)))
 
         return super(TracebackList, self).mouseReleaseEvent(event)

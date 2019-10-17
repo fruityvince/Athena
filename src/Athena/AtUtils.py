@@ -108,7 +108,7 @@ def getPackages(verbose=False):
         groups = search.groups()
         if not loadedPackage.endswith('.'.join(groups)):
             continue
-        print 'loadedPackage', loadedPackage
+            
         module = importFromStr(loadedPackage)
 
         path = os.path.dirname(module.__file__)

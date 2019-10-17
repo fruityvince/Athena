@@ -200,6 +200,7 @@ def automatic(cls):
     return cls
 
 
+#TODO: Think about an implementation of a data feature (Share data between checks.)
 class Data(object):
 
     def __init__(self):
