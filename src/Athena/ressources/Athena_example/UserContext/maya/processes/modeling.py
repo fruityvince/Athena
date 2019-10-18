@@ -15,13 +15,14 @@ class BestModelEver(AtCore.Process):
         Nope
 
     Notes:
-        - blah blah blah
+        - color is {color}
     """
 
     name = 'Not Best Model Ever'
 
     def __init__(self, color='Blue'):
         self.color = color
+        self._docFormat_['color'] = color
 
         #print color
         
@@ -65,7 +66,6 @@ class ThisCheckIsBad(AtCore.Process):
     features:
         - numero 1
         - Have a realtime check
-        - tamer
     
     """
     
