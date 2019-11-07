@@ -7,7 +7,7 @@
  /_/    \_\__|_| |_|\___|_| |_|\__,_|
 """
 
-from Athena.gui import AtUi
+from Athena.AtGui import AtUi
 from Athena import AtCore, AtUtils, AtConstants
 
 __version__ = AtConstants.VERSION
