@@ -223,3 +223,6 @@ As I said before, the Register object will retrieve all imported Athena packages
 To simplify the use of this mechanic you can:
 - Import your package in any startup script of you software. (Best for personal use)
 - Resolve the right package through rez, conda or whatever you use. (Best for production)
+
+
+This project is licensed under the terms of the MIT license.
