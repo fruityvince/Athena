@@ -819,6 +819,8 @@ class Blueprint(object):
             raise RuntimeError('Can not import module {0}'.format(moduleStr))
 
         processClass = getattr(module, processStr)
+        if not issubclass(processClass, Process):
+            raise RuntimeError('Class {0} from {1} is not a subclass of {2}'.format(processStr, moduleStr, Process))
 
         return processClass(*args, **kwargs)
 

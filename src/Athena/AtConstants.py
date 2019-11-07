@@ -1,6 +1,6 @@
 PROGRAM_NAME = 'Athena'
 
-VERSION = '0.0.0-beta'
+VERSION = '1.0.0-beta'
 
 AVAILABLE_SOFTWARE = ('maya', 'katana', 'houdini', 'nuke', 'mari')
 

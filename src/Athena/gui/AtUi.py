@@ -91,9 +91,9 @@ class Athena(QtWidgets.QMainWindow):
         self.menu = self.menuBar()
         self.option_QMenu = self.menu.addMenu('Options')
         self.register_QMenu = self.menu.addMenu('Register')
-        self.help_QMenu = self.menu.addMenu('Help')
         if self.dev:
             self.dev_QMenu = self.menu.addMenu('Dev')
+        self.help_QMenu = self.menu.addMenu('Help')
 
         # -- Options Menu
         self.option_QMenu.addSection('Enable Processes')
@@ -125,12 +125,11 @@ class Athena(QtWidgets.QMainWindow):
         # self.currentModule_QAction = QtWidgets.QAction('', self.register_QMenu)
         # self.currentModule_QAction.setEnabled(False)
 
-
         # Help Menu
-        self.openWiki_QAction = QtWidgets.QAction(self.resourcesManager.get('wiki.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), "Open Wiki", self.help_QMenu)
+        self.openWiki_QAction = QtWidgets.QAction(self.resourcesManager.get('wiki.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '[Placeholder] Open Wiki', self.help_QMenu)
         self.help_QMenu.addAction(self.openWiki_QAction)
 
-        self.reportBug_QAction = QtWidgets.QAction(self.resourcesManager.get('bug.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), "Report Bug", self.help_QMenu)
+        self.reportBug_QAction = QtWidgets.QAction(self.resourcesManager.get('bug.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '[Placeholder] Report Bug', self.help_QMenu)
         self.help_QMenu.addAction(self.reportBug_QAction)
 
         # self.support_QAction = QtWidgets.QAction(self.resourcesManager.get('support.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), "Support Project", self.help_QMenu)
@@ -499,8 +498,7 @@ class ProcessDelegate(QtWidgets.QStyledItemDelegate):
         
         painter.setFont(QtGui.QFont('Cantarell', 10, QtGui.QFont.Bold))
 
-        painter.drawText(option.rect.adjusted(0, option.rect.height(), option.rect.width(), option.rect.height()), 
-                         itemData[0])
+        painter.drawText(option.rect.adjusted(0, option.rect.height(), option.rect.width(), option.rect.height()), itemData[0])
 
         painter.restore()
 
@@ -512,7 +510,7 @@ class Status(object):
     """
 
     class DEFAULT():
-        color = QtGui.QColor(50, 50, 50)
+        color = QtGui.QColor(65, 65, 65)
         isFail = False        
 
     class SUCCESS():
@@ -525,6 +523,16 @@ class Status(object):
 
     class WARNING():
         color = QtGui.QColor(196, 98, 16) # Alloy Orange
+        isFail = True
+
+    #TODO: Think about the best implementation about incomplete process. (Incomplete if data is missing for running)
+    class INCOMPLETE():
+        color = QtGui.QColor(255, 186, 0) # Selective Yellow
+        isFail = True
+
+    #TODO: Think about the best implementation of a paused feature. Like pausing a process during run of another.
+    class PAUSED():
+        color = QtGui.QColor(28, 57, 187) # Persian Blue
         isFail = True
 
     class ERROR():
@@ -1198,9 +1206,9 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
     def setupUi(self):
         """ Setup the ScrollArea widget """
 
-        # palette = self.palette()
-        # palette.setColor(QtGui.QPalette.Background, QtGui.QColor(52, 52, 52))
-        # self.setPalette(palette)
+        palette = self.palette()
+        palette.setColor(QtGui.QPalette.Background, QtGui.QColor(50, 50, 50))
+        self.setPalette(palette)
 
         self.layout.setSpacing(1)
         try: self.layout.setMargin(0)  # Deprecated in PyQt5 But not on PySide2

@@ -219,6 +219,7 @@ class NoNGons(PolygonShape):
         print self.name, 'check'
         super(NoNGons, self).check(mode=mode)
 
+
 class NoTris(PolygonShape):
     """
     Check the scene to ensure there is no triangle.
@@ -232,6 +233,33 @@ class NoTris(PolygonShape):
         super(NoTris, self).check(mode=mode)
         # super(NoTris.inherit, self).check(mode='tris')
 
-    def select(self, toSelect):
-        print 'toto'
-#FIXME: There is error when a QC inherit from an automatic QC. Also, this need to be easier to understand.
+
+@AtCore.automatic
+class NoConstructionHistory(AtCore.Process):
+
+    def check(self):
+
+        self.toCheck = cmds.ls(dag=True, type='transform', long=True)
+
+        baseProgressValue = 100. / (len(self.toCheck) or 1)
+        for i, each in enumerate(self.toCheck):
+            self.setProgressValue(baseProgressValue * i, text='Checking: {0}'.format(each))
+
+            history = cmds.listHistory(each, future=False, pruneDagObjects=True)
+
+            if history:
+                self.toFix.append(each)
+
+        self.addFeedback(
+                title='These nodes have construction history',
+                toDisplay=[cmds.ls(node, shortNames=True)[0] for node in self.toFix],
+                toSelect=self.toFix
+            )
+
+    def fix(self):
+
+        if not self.isChecked:
+            self.check()
+
+        for each in self.toFix:
+            cmds.delete(each, constructionHistory=True)
