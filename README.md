@@ -1,3 +1,5 @@
+*Currently in beta, can be unstable. Feel free to give feedback and open issues if needed.*
+
 # What is Athena ?
 
 Athena is an **API** and a **Tool** made to create and manage Sanity Check and Fix process in Python.
@@ -225,4 +227,4 @@ To simplify the use of this mechanic you can:
 - Resolve the right package through rez, conda or whatever you use. (Best for production)
 
 
-This project is licensed under the terms of the MIT license.
+**This project is licensed under the terms of the MIT license.**
