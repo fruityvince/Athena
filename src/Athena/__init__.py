@@ -39,7 +39,6 @@ def batch(context, env, dev=False, verbose=False):
         if not blueprint._isCheckable or blueprint._isNonBlocking or not blueprint._inBatch:
             continue
 
-        print blueprint
         try:
             result, state = blueprint.check()
             if state:
