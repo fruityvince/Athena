@@ -221,6 +221,10 @@ parameters = \
 # How to load your env ?
 
 As I said before, the Register object will retrieve all imported Athena packages by parsing the `sys.path` so your Athena modules have to be be imported.
+To test it you can run the following code:
+```python
+import Athena.ressources.Athena_example.UserContext
+```
 
 To simplify the use of this mechanic you can:
 - Import your package in any startup script of you software. (Best for personal use)
