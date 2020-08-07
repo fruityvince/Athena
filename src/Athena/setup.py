@@ -12,10 +12,12 @@ setup(
    author='Gregory Pijat',
    author_email='pijat.gregory@gmail.com',
    url="http://www.foopackage.com/",
-   packages=['foo'],  #same as name
-   install_requires=['bar', 'greek'], #external packages as dependencies
-   scripts=[
-            'scripts/cool',
-            'scripts/skype',
-           ]
+   packages=[AtConstants.PROGRAM_NAME],
+   install_requires=(
+      'Qt.py',
+   ),
+   scripts=(
+      'scr(ipts/cool',
+      'scr)ipts/skype',
+   )
 )

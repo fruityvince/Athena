@@ -155,6 +155,7 @@ def getSoftware(default='standalone'):
     #         return software
         
     # Fallback on the most efficient solution if psutil package is available
+
     if 'psutil' in sys.modules:
         import psutil
         process = psutil.Process(os.getpid())
@@ -235,6 +236,16 @@ def importFromStr(moduleStr, verbose=False):
         raise ImportError(exception) # AtEnvImportError - exception.args
 
     return module
+
+
+def reload(module):
+
+    moduleName = module.__name__
+
+    if moduleName in sys.modules:
+        del module
+
+    importFromStr(moduleName)
 
 
 # could be only with instance of class. (get inheritance and return dict with each one as key and list of overriden as value)
@@ -515,6 +526,17 @@ def softwareSelection(toSelect):
 
         try:
             NodegraphAPI.SetAllSelectedNodes(toSelect)
+        except:
+            pass
+        return
+
+    elif software == 'blender':
+        import bpy
+
+        try:
+            bpy.ops.object.select_all(action='DESELECT')
+            for each in toSelect:
+                each.select_set(True)
         except:
             pass
         return

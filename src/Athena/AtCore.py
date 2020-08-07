@@ -1,6 +1,10 @@
 import re
 import numbers
 import six
+import inspect
+
+import cProfile
+import pstats
 
 from pprint import pprint
 
@@ -31,9 +35,16 @@ class Process(object):
         # Create the instance
         instance = super(Process, cls).__new__(cls, *args, **kwargs)
 
+        # Setup the dict of threads on the instance object.
+        instance.__threads = {}
+        for memberName, member in inspect.getmembers(cls):
+            if isinstance(member, Thread):
+                instance.__threads[memberName] = member
+
         # Private instance attributes (Used for internal management)
         instance._name = instance.__class__.__name__
-        instance._feedback = []
+        instance._feedback = {}
+        instance._stats = {}
         instance._progressbar = None
 
         # Public instance attribute (To be used by user to manage process data)
@@ -42,8 +53,8 @@ class Process(object):
         instance.data = []
         instance.isChecked = False
 
-        # Dunder instance attribute (To be used by user to custom the process)
-        instance._docFormat_ = {}
+        # Sunder instance attribute (To be used by user to custom the process)
+        instance._docFormat_ = {}  # The keys/values pair in this dict are retrieved to format the doc. To be used in __init__.
 
         return instance
 
@@ -73,6 +84,10 @@ class Process(object):
         """Define the process name """
         self._name = str(value)
 
+    @property
+    def feedback(self):
+        return self._feedback
+
     def setProgressValue(self, value, text=None):
         """Set the progress value of the process progressBar if exist.
         
@@ -94,56 +109,59 @@ class Process(object):
         if text and text != self._progressbar.text():
             self._progressbar.setFormat(AtConstants.PROGRESSBAR_FORMAT.format(text))
 
-    def addFeedback(self, title, toDisplay, toSelect=None, documentation=None):
-        """Add a new feedback for the process to display
+    # def addFeedback(self, title, toDisplay, toSelect=None, documentation=None):
+    #     """Add a new feedback for the process to display
 
-        Parameters
-        -----------
-        title: str
-            The title linked to this feedback.
-        toDisplay: <iterable> or Ellipsis
-            Iterable object containing all objects found for this title, these objetcs will be displayed
-            and used for selection if `toSelect` is None.
-            If toDisplay is Ellipsis, this feedback can be used to only display a title.
-        toSelect: <iterable> or None
-            If an iterable is provided it should be ordered like the `toDisplay` iterable to match display
-            and selection. If set to None, the objects used for selection will be thoses used for display.
-        documentation: str or None
-            This allow to affect a documentation for this feedback.
-        """
+    #     Parameters
+    #     -----------
+    #     title: str
+    #         The title linked to this feedback.
+    #     toDisplay: <iterable> or Ellipsis
+    #         Iterable object containing all objects found for this title, these objetcs will be displayed
+    #         and used for selection if `toSelect` is None.
+    #         If toDisplay is Ellipsis, this feedback can be used to only display a title.
+    #     toSelect: <iterable> or None
+    #         If an iterable is provided it should be ordered like the `toDisplay` iterable to match display
+    #         and selection. If set to None, the objects used for selection will be thoses used for display.
+    #     documentation: str or None
+    #         This allow to affect a documentation for this feedback.
+    #     """
 
-        assert title, 'A title is required to add a new feedback'
+    #     assert title, 'A title is required to add a new feedback'
 
-        if not toDisplay:
-            return
+    #     if not toDisplay:
+    #         return
 
-        # If toDisplay is not None check if it is necessary to conform it. Else, add None to the value to handle a no display.
-        if toDisplay is not Ellipsis:
+    #     # If toDisplay is not None check if it is necessary to conform it. Else, add None to the value to handle a no display.
+    #     if toDisplay is not Ellipsis:
 
-            # Check if toDisplay is conform, if it is not a list or a tuple, cast it to tuple.
-            if not hasattr(toDisplay, '__iter__'):
-                toDisplay = (toDisplay,)
+    #         # Check if toDisplay is conform, if it is not a list or a tuple, cast it to tuple.
+    #         if not hasattr(toDisplay, '__iter__'):
+    #             toDisplay = (toDisplay,)
 
-            # Check toSelect, if it have not been given, set it to be equal to toDisplay, if it is not a list or a tuple cast it to tuple.
-            if toSelect is None:
-                toSelect = toDisplay
-            elif not hasattr(toSelect, '__iter__'):
-                toSelect = (toSelect,)
+    #         # Check toSelect, if it have not been given, set it to be equal to toDisplay, if it is not a list or a tuple cast it to tuple.
+    #         if toSelect is None:
+    #             toSelect = toDisplay
+    #         elif not hasattr(toSelect, '__iter__'):
+    #             toSelect = (toSelect,)
 
-            # Check if there is the same amount of object toDisplay and toSelect.
-            if len(toSelect) != len(toDisplay):
-                toSelect = toDisplay
+    #         # Check if there is the same amount of object toDisplay and toSelect.
+    #         if len(toSelect) != len(toDisplay):
+    #             toSelect = toDisplay
 
-        self._feedback.append({
-            'title': title,
-            'toDisplay': toDisplay,
-            'toSelect': toSelect,
-            'documentation': documentation
-        })
+    #     self._feedback.append({
+    #         'title': title,
+    #         'toDisplay': toDisplay,
+    #         'toSelect': toSelect,
+    #         'documentation': documentation
+    #     })
 
     def clearFeedback(self):
         """Clear all feedback for this process"""
-        self._feedback = []
+        self._feedback.clear()
+
+    def addFeedback(self, thread, toDisplay, toSelect, selectMethod=None):
+        self._feedback[thread] = Feedback(thread, toDisplay, toSelect, selectMethod=selectMethod)
 
 
 # Automatic Decorator
@@ -173,9 +191,11 @@ def automatic(cls):
             self.toFix = type(self.toFix)()
             self.data = type(self.data)()
 
-            check_(self, *args, **kwargs)
+            result = check_(self, *args, **kwargs)
 
             self.isChecked = True
+
+            return result
 
         setattr(cls, AtConstants.CHECK, check)  # Replace the check method in the process
 
@@ -183,9 +203,11 @@ def automatic(cls):
     if fix_ is not None:
         def fix(self, *args, **kwargs):
 
-            fix_(self, *args, **kwargs)
+            result = fix_(self, *args, **kwargs)
 
             self.isChecked = False
+
+            return result
 
         setattr(cls, AtConstants.FIX, fix)  # Replace the fix method in the process
 
@@ -193,7 +215,9 @@ def automatic(cls):
     if tool_ is not None:
         def tool(self, *args, **kwargs):
 
-            tool_(self, *args, **kwargs)
+            result = tool_(self, *args, **kwargs)
+
+            return result
 
         setattr(cls, AtConstants.TOOL, tool)  # Replace the tool method in the process
 
@@ -248,6 +272,9 @@ class Register(object):
             self._env,
         )
 
+    def __bool__(self):
+        return bool(self._blueprints)
+
     def __nonzero__(self):
         """Allow to interpret this object as a boolean.
         
@@ -256,7 +283,7 @@ class Register(object):
             True if there is any blueprint, False otherwise.
         """
 
-        return bool(self._blueprints)
+        return self.__bool__()
 
     def __eq__(self, other):
         """Allow to use '==' for logical comparison.
@@ -450,7 +477,7 @@ class Register(object):
 
         # If force reload are enabled, this will reload the env module.
         if forceReload:
-            reload(envModule)
+            AtUtils.reload(envModule)
 
         # Try to access the `blueprints` variable in the env module
         blueprints = getattr(envModule, 'register', {})
@@ -485,9 +512,9 @@ class Register(object):
             Lis of all reloaded modules.
         """
 
-        modules = list(set([blueprint._module for blueprint in self._blueprints]))
+        modules = list(set((blueprint._module for blueprint in self._blueprints)))
         for module in modules:
-            reload(module)
+            AtUtils.reload(module)
 
         return modules
 
@@ -597,6 +624,7 @@ class Blueprint(object):
         initArgs, initKwargs = self.getArguments('__init__')
         self._module = None
         self._process = self.getProcess(initArgs, initKwargs)
+        self._threads = self.getThreads()
         self._links = {AtConstants.CHECK: [], AtConstants.FIX: [], AtConstants.TOOL: []}
         self._options = blueprint.get('options', {})
 
@@ -622,6 +650,7 @@ class Blueprint(object):
         # And also the base variable necessary to define if theses methods are available.
         self.setupCore()
         self.setupTags()
+        self.overrideLevels()
 
     def __repr__(self):
         """Return the representation of the object."""
@@ -700,12 +729,12 @@ class Blueprint(object):
         args, kwargs = self.getArguments(AtConstants.CHECK)
         returnValue = self._check(*args, **kwargs)  #TODO: Not used !!
 
-        result = self.filterResult(self._process._feedback)
+        result, feedbackLevel = self.filterResult(self._process._feedback)
 
         if links:
             self.runLinks(AtConstants.CHECK)
         
-        return result, bool(result)
+        return result, feedbackLevel
 
     def fix(self, links=True):
         """This is a wrapper for the process fix that will automatically execute it with the right parameters.
@@ -824,6 +853,16 @@ class Blueprint(object):
 
         return processClass(*args, **kwargs)
 
+    def getThreads(self):
+        members = inspect.getmembers(self._process)
+
+        threads = {}
+        for memberName, member in members:
+            if isinstance(member, Thread):
+                threads[memberName] = member
+
+        return threads
+
     def setupCore(self):
         """Setup all data for the wrapping method (check, fix, tool...) and bool to know if isCheckable, isFixable, 
         hasTool...
@@ -916,6 +955,40 @@ class Blueprint(object):
 
             self._links[_driver].append(getattr(linkedObjects[index], driven))
 
+    def overrideLevels(self):
+        """Override the arguments level of the Process Blueprint from the data in the env module."""
+
+        levelOverrides = self.blueprint.get('level', None)
+        if levelOverrides is None:
+            return
+
+        for overrideName, overridesDict in levelOverrides.iteritems():
+            if not hasattr(self._process, overrideName):
+                raise RuntimeError('Process {0} have not thread named {1}.'.format(self._process.name, overrideName))
+            thread = getattr(self._process, overrideName)
+            
+            # Get the fail overrides for the current name
+            if 'fail' in overridesDict:
+                feedbackLevel = overridesDict[Status.TYPE_FAIL]
+                if feedbackLevel._type is not Status.TYPE_FAIL:
+                    raise RuntimeError('Fail feedback level override for {0} "{1}" must be a {2} feedback.'.format(
+                        self._process.name,
+                        overrideName,
+                        Status.TYPE_FAIL
+                    ))
+                thread.failStatus = feedbackLevel
+            
+            # Get the success overrides for the current name
+            if 'success' in overridesDict:
+                feedbackLevel = overridesDict[Status.TYPE_SUCCESS]
+                if feedbackLevel._type is not Status.TYPE_SUCCESS:
+                    raise RuntimeError('Success feedback level override for {0} "{1}" must be a {2} feedback.'.format(
+                        self._process.name,
+                        overrideName,
+                        Status.TYPE_SUCCESS
+                    ))
+                thread.successStatus = feedbackLevel
+
     def setProgressbar(self, progressbar):
         """ Called in the ui this method allow to give access to the progress bar for the user
 
@@ -946,6 +1019,35 @@ class Blueprint(object):
 
         return docstring.format(**docFormat)
 
+    # DEPRECATED 1.0.0
+    # def filterResult(self, result):
+    #     """ Filter the data ouputed by a process to keep only these that is not empty.
+
+    #     Parameters
+    #     ----------
+    #     result: tuple
+    #         Tuple containing tuple with a str for title and list of errors.
+    #         > tuple(tuple(str, list, `list`, `str`), ...)
+
+    #     Returns
+    #     -------
+    #     list
+    #         List of feedbacks that contain at least one error to log or only a title. 
+    #     """
+
+    #     filtered_result = []
+    #     for feedback in result:
+    #         toDisplay = feedback['toDisplay']
+    #         if not toDisplay:
+    #             continue
+    #         elif feedback['toDisplay'] is Ellipsis:
+    #             feedback['toDisplay'] = []
+    #             feedback['toSelect'] = []
+
+    #         filtered_result.append(feedback)
+
+    #     return filtered_result
+
     def filterResult(self, result):
         """ Filter the data ouputed by a process to keep only these that is not empty.
 
@@ -961,18 +1063,19 @@ class Blueprint(object):
             List of feedbacks that contain at least one error to log or only a title. 
         """
 
-        filtered_result = []
-        for feedback in result:
-            toDisplay = feedback['toDisplay']
-            if not toDisplay:
-                continue
-            elif feedback['toDisplay'] is Ellipsis:
-                feedback['toDisplay'] = []
-                feedback['toSelect'] = []
+        filteredResult = []
+        globalFailStatus = Status.lowestFailStatus()  #TODO: This must be documented !!
+        globalSuccessStatus = Status.lowestSuccessStatus()
+        for thread, feedback in result.items():
+            if feedback:
+                filteredResult.append(feedback)
+                if thread._failStatus._priority >= globalFailStatus._priority:
+                    globalFailStatus = thread._failStatus
+            else:
+                if thread._successStatus._priority <= globalSuccessStatus._priority:
+                    globalSuccessStatus = thread._successStatus
 
-            filtered_result.append(feedback)
-
-        return filtered_result
+        return filteredResult, globalFailStatus if filteredResult else globalSuccessStatus
 
 
 class Tag(object):
@@ -1057,6 +1160,192 @@ class ID(six.with_metaclass(MetaID, object)):
         
         cls._data_.clear()
 
+
+class Status(object):
+
+    TYPE_FAIL = 'fail'
+    TYPE_SUCCESS = 'success'
+    TYPE_FEEDBACK = 'feedback'
+    __TYPE_BUILT_IN = 'built-in'
+
+    class FeedbackStatus(object):
+        
+        _ALL_STATUS = []
+
+        def __new__(cls, *args, **kwargs):
+            """Allow to store all new levels in the __ALL_LEVELS class variable to return singleton."""
+            instance = super(cls.__class__, cls).__new__(cls)
+            cls._ALL_STATUS.append(instance)
+
+            return instance
+        
+        def __init__(self, name, priority, color, type, canBeDefault=True):
+
+            self._name = name
+            self._priority = priority
+            self._color = color
+            self._type = type
+
+            self._canBeDefault = canBeDefault
+
+        def __bool__(self):
+            return bool(self._type is Status.TYPE_FAIL or self._type is Status._EXCEPTION)
+
+        def __nonzero__(self):
+            """This method is here for portability between python 2.x and python 3.x"""
+            return self.__bool__()
+
+
+    _DEFAULT =  FeedbackStatus('Default', 0.0, (65, 65, 65), type=__TYPE_BUILT_IN, canBeDefault=True)
+
+    # INFO =  FeedbackStatus('Info', 0.0, (200, 200, 200), type=TYPE_FEEDBACK, canBeDefault=True)
+    PAUSED = FeedbackStatus('Paused', 0.0, (255, 186, 0), type=TYPE_FEEDBACK, canBeDefault=False)
+
+    SUCCESS = FeedbackStatus('Success', -1.2, (0, 128, 0), type=TYPE_SUCCESS, canBeDefault=True)
+    CORRECT = FeedbackStatus('Correct', -1.1, (22, 194, 15), type=TYPE_SUCCESS, canBeDefault=True)
+
+    WARNING = FeedbackStatus('Warning', 1.1, (196, 98, 16), type=TYPE_FAIL, canBeDefault=True)
+    ERROR = FeedbackStatus('Error', 1.2, (102, 0, 0), type=TYPE_FAIL, canBeDefault=True)
+    CRITICAL = FeedbackStatus('Critical', 1.3, (150, 0, 0), type=TYPE_FAIL, canBeDefault=False)
+
+    _EXCEPTION = FeedbackStatus('Exception', float('inf'), (110, 110, 110), type=__TYPE_BUILT_IN, canBeDefault=False)
+
+    @classmethod
+    def lowestFailStatus(cls):
+        return sorted([status for status in cls.FeedbackStatus._ALL_STATUS if status._priority and status._type is cls.TYPE_FAIL], key=lambda x: x._priority)[0]
+
+    @classmethod
+    def highestFailStatus(cls):
+        return sorted([status for status in cls.FeedbackStatus._ALL_STATUS if status._priority and status._type is cls.TYPE_FAIL], key=lambda x: x._priority)[-1]
+
+    @classmethod
+    def lowestSuccessStatus(cls):
+        return sorted([status for status in cls.FeedbackStatus._ALL_STATUS if status._priority and status._type is cls.TYPE_SUCCESS], key=lambda x: x._priority)[0]
+
+    @classmethod
+    def highestSuccessStatus(cls):
+        return sorted([status for status in cls.FeedbackStatus._ALL_STATUS if status._priority and status._type is cls.TYPE_SUCCESS], key=lambda x: x._priority)[-1]
+
+
+class Feedback(object):
+    """This onbject contain all the data to describe one feedback that have. been checked in a Process."""
+    def __init__(self, thread, toDisplay, toSelect, selectMethod=None, help=None):
+        
+        if len(toDisplay) != len(toSelect):
+            raise ValueError('You must have the same amount of object to select and to display')
+
+        self._thread = thread
+
+        self._toDisplay = tuple(toDisplay)
+        self._toSelect = tuple(toSelect or toDisplay)
+        self._items = list(zip(toDisplay, toSelect))
+
+        self._selectMethod = selectMethod or AtUtils.softwareSelection
+
+    def selectAll(self):
+        self._selectMethod(self._toSelect)
+
+    def select(self, indexes):
+        self._selectMethod([self._items[i][1] for i in indexes])
+
+    def hasFeedback(self):
+        return bool(self._toDisplay)
+
+    def iterItems(self):
+        for item in self._items:
+            yield item
+
+    def __bool__(self):
+        return bool(self._toSelect)
+
+    def __nonzero__(self):
+        """This method is here for portability between python 2.x and python 3.x"""
+        return self.__bool__()
+
+class Thread(object):
+
+    def __init__(self, title, defaulFailLevel=Status.ERROR, defaultSuccessLevel=Status.SUCCESS, documentation=None):
+
+        if not defaulFailLevel._canBeDefault:
+            raise RuntimeError('defaulFailLevel `{}` can not be default level.'.format(defaulFailLevel._name))
+        if not defaultSuccessLevel._canBeDefault:
+            raise RuntimeError('defaultSuccessLevel `{}` can not be default level.'.format(defaultSuccessLevel._name))
+
+        self._title = title
+        self._defaulFailLevel = defaulFailLevel
+        self._defaultSuccessLevel = defaultSuccessLevel
+        self._documentation = documentation
+
+        self._failStatus = defaulFailLevel
+        self._successStatus = defaultSuccessLevel
+
+    @property
+    def failStatus(self):
+        return self._failStatus
+
+    @failStatus.setter
+    def failStatus(self, newStatus):
+        if not isinstance(newStatus, Status.FeedbackStatus):
+            raise TypeError('Fail level can only be an instance or subtype of `{}`.'.format(type(Status.Level)))
+        self._failStatus = newStatus
+
+    @property
+    def successStatus(self):
+        return self._successStatus
+
+    @successStatus.setter
+    def successStatus(self, newStatus):
+        if not isinstance(newStatus, Status.FeedbackStatus):
+            raise TypeError('Success level can only be an instance or subtype of `{}`.'.format(type(Status.Level)))
+        self._successStatus = newStatus
+    
+
+class Event(object):
+
+    def __init__(self, name):
+        super(Event, self).__init__()
+        self.name = name
+        self.callbacks = []
+
+    def __call__(self):
+        for callback in self.callbacks:
+            callback()
+
+    def register(self, callback):
+        if not callable(callback):
+            LOGGER.warning(
+                'Event "{0}" failed to register callback: Object "{1}" is not callable'.format(self.name, callback)
+            )
+            return False
+
+        self.callbacks.append(callback)
+        return True
+
+    def unregister(self, callback):
+        pass
+
+
+class Profiler(object):
+
+    def __init__(self, callable):
+        self._profiler = cProfile.Profile()
+
+        self._callable = callable
+
+        self._stats = ''
+
+    def __enter__(self):
+        self._profiler.runcall(self._callable)
+
+        # Create a 
+        with open('stats.stat', 'w') as statStream:
+            stats = pstats.Stats(profile, stream=statStream)
+            stats.print_stats()
+        
+        with open('stats.stat', 'r') as statStream:
+            self._stats = statStream.read()
+
+# sys.path.append('C:\Python27\Lib\site-packages')
 
 # def merge_env(env_pck):
 
