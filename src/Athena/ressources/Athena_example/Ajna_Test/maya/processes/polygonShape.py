@@ -10,7 +10,7 @@ __all__ = ('PolygonShape',)
 class PolygonShape(AtCore.Process):
     """ chekc for polygons"""
 
-    TRIS = AtCore.Thread(title='You should not have Tris in your models', defaulFailLevel=AtCore.Status.WARNING)
+    TRIS = AtCore.Thread(title='You should not have Tris in your models', failStatus=AtCore.Status.WARNING)
     NGONS = AtCore.Thread(title='You should not have NGons in your models')
 
     def __init__(self):
@@ -40,14 +40,12 @@ class PolygonShape(AtCore.Process):
         while not mIt_kMesh.isDone():
             progress += baseProgressValue
             self.setProgressValue(progress)
+
             mObject = mIt_kMesh.thisNode()
-
             dagPath = om.MDagPath.getAPathTo(mObject)
-
             mFnMesh = om.MFnMesh(dagPath)
-            mObject_numFaces = mFnMesh.numPolygons
 
-            for faceID in range(0, mObject_numFaces):
+            for faceID in range(0, mFnMesh.numPolygons):
 
                 vertexCount = mFnMesh.getPolygonVertices(faceID)
 
@@ -67,8 +65,17 @@ class PolygonShape(AtCore.Process):
 
             mIt_kMesh.next()
 
-        self.addFeedback(thread=self.TRIS if mode == 'tris' else self.NGONS, 
+        # self.NGONS.successStatus = Athena.Status.CORRECT  #FIXME This will raise - But if removed and blueprints are reloaded, it will still fail
+        self.setFeedback(thread=self.TRIS if mode == 'tris' else self.NGONS, 
                          toDisplay=[cmds.ls(face, shortNames=True)[0] for face in self.toFix],
                          toSelect=self.toFix)
+        
+        self.setAllSuccess()
+        if self.toFix:
+            if mode == 'tris':
+                self.setFail(self.TRIS)
+            if mode == 'nGons':
+                self.setFail(self.NGONS)
+
 
         return self.toFix

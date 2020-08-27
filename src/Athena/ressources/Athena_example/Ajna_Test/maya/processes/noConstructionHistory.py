@@ -9,7 +9,7 @@ __all__ = ('NoNGons',)
 @AtCore.automatic
 class NoConstructionHistory(AtCore.Process):
 
-    NODES_WITH_HISTORY = AtCore.Thread(title='These nodes have construction history', defaulFailLevel=AtCore.Status.ERROR)
+    NODES_WITH_HISTORY = AtCore.Thread(title='These nodes have construction history', failStatus=AtCore.Status.ERROR)
 
     def check(self):
 
@@ -24,11 +24,15 @@ class NoConstructionHistory(AtCore.Process):
             if history:
                 self.toFix.append(each)
 
-        self.addFeedback(
-                thread=self.NODES_WITH_HISTORY,
-                toDisplay=[cmds.ls(node, shortNames=True)[0] for node in self.toFix],
-                toSelect=self.toFix
-            )
+        if self.toFix:
+            self.setFail(self.NODES_WITH_HISTORY)
+            self.setFeedback(
+                    thread=self.NODES_WITH_HISTORY,
+                    toDisplay=[cmds.ls(node, shortNames=True)[0] for node in self.toFix],
+                    toSelect=self.toFix
+                )
+        else:
+            self.setSuccess(self.NODES_WITH_HISTORY)
 
     def fix(self):
 

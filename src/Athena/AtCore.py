@@ -156,11 +156,41 @@ class Process(object):
     #         'documentation': documentation
     #     })
 
-    def clearFeedback(self):
+    def reset(self):
+        self._resetThreads()
+        self._clearFeedback()
+
+    def _resetThreads(self):
+        for thread in self.__threads.values():
+            thread.reset()
+
+    def _clearFeedback(self):
         """Clear all feedback for this process"""
         self._feedback.clear()
 
+    def setFail(self, thread, overrideStatus=None):
+        thread._setFail(overrideStatus=overrideStatus)
+
+    def setAllFail(self):
+        for thread in self.__threads.values():
+            self.setFail(thread)
+
+    def setSuccess(self, thread, overrideStatus=None):
+        thread._setSuccess(overrideStatus=overrideStatus)
+
+    def setAllSuccess(self):
+        for thread in self.__threads.values():
+            self.setSuccess(thread)
+
     def addFeedback(self, thread, toDisplay, toSelect, selectMethod=None):
+        feedback = self._feedback.get(thread, None)
+        if feedback is None:
+            self.setFeedback(thread, (toDisplay,), (toSelect,), selectMethod=selectMethod)
+            return
+
+        feedback.append(toDisplay, toSelect)
+
+    def setFeedback(self, thread, toDisplay, toSelect, selectMethod=None):
         self._feedback[thread] = Feedback(thread, toDisplay, toSelect, selectMethod=selectMethod)
 
 
@@ -185,7 +215,7 @@ def automatic(cls):
     if check_ is not None:
         def check(self, *args, **kwargs):
 
-            self.clearFeedback()
+            self.reset()
 
             self.toCheck = type(self.toCheck)()
             self.toFix = type(self.toFix)()
@@ -275,15 +305,7 @@ class Register(object):
     def __bool__(self):
         return bool(self._blueprints)
 
-    def __nonzero__(self):
-        """Allow to interpret this object as a boolean.
-        
-        Returns:
-        bool
-            True if there is any blueprint, False otherwise.
-        """
-
-        return self.__bool__()
+    __nonzero__ = __bool__
 
     def __eq__(self, other):
         """Allow to use '==' for logical comparison.
@@ -477,7 +499,7 @@ class Register(object):
 
         # If force reload are enabled, this will reload the env module.
         if forceReload:
-            AtUtils.reload(envModule)
+            AtUtils.reloadModule(envModule)
 
         # Try to access the `blueprints` variable in the env module
         blueprints = getattr(envModule, 'register', {})
@@ -514,7 +536,7 @@ class Register(object):
 
         modules = list(set((blueprint._module for blueprint in self._blueprints)))
         for module in modules:
-            AtUtils.reload(module)
+            AtUtils.reloadModule(module)
 
         return modules
 
@@ -596,6 +618,7 @@ class Register(object):
         """
 
         return self._data[context]['envs'][env].get('icon', None)
+
 
 class Blueprint(object):
     """This object will manage a single process instance to be used through an ui.
@@ -706,6 +729,12 @@ class Blueprint(object):
     def isNonBlocking(self):
         """Get the Blueprint's non blocking state"""
         return self._isNonBlocking
+
+    def getLowestFailStatus(self):
+        return next(iter(sorted((thread._failStatus for thread in self._threads.values()), key=lambda x: x._priority)), None)
+
+    def getLowestSuccessStatus(self):
+        return next(iter(sorted((thread._successStatus for thread in self._threads.values()), key=lambda x: x._priority)), None)
         
     def check(self, links=True):
         """This is a wrapper for the process check that will automatically execute it with the right parameters.
@@ -729,7 +758,7 @@ class Blueprint(object):
         args, kwargs = self.getArguments(AtConstants.CHECK)
         returnValue = self._check(*args, **kwargs)  #TODO: Not used !!
 
-        result, feedbackLevel = self.filterResult(self._process._feedback)
+        result, feedbackLevel = self._filterFeedbacks()
 
         if links:
             self.runLinks(AtConstants.CHECK)
@@ -1020,7 +1049,7 @@ class Blueprint(object):
         return docstring.format(**docFormat)
 
     # DEPRECATED 1.0.0
-    # def filterResult(self, result):
+    # def _filterResult(self, result):
     #     """ Filter the data ouputed by a process to keep only these that is not empty.
 
     #     Parameters
@@ -1048,8 +1077,38 @@ class Blueprint(object):
 
     #     return filtered_result
 
-    def filterResult(self, result):
-        """ Filter the data ouputed by a process to keep only these that is not empty.
+    # def _filterFeedbacks(self):
+    #     """ Filter the data outputed by a process to keep only these that is not empty.
+
+    #     Parameters
+    #     ----------
+    #     result: tuple
+    #         Tuple containing tuple with a str for title and list of errors.
+    #         > tuple(tuple(str, list, `list`, `str`), ...)
+
+    #     Returns
+    #     -------
+    #     list
+    #         List of feedbacks that contain at least one error to log or only a title. 
+    #     """
+
+    #     globalFailStatus = self.getLowestFailStatus()
+    #     globalSuccessStatus = self.getLowestSuccessStatus()
+
+    #     feedbackContainer = []
+    #     for thread, feedback in self._process.feedback.items():
+    #         if feedback:
+    #             feedbackContainer.append(feedback)
+    #             if thread._failStatus._priority >= globalFailStatus._priority:
+    #                 globalFailStatus = thread._failStatus
+    #         else:
+    #             if thread._successStatus._priority <= globalSuccessStatus._priority:
+    #                 globalSuccessStatus = thread._successStatus
+
+    #     return feedbackContainer, globalFailStatus if feedbackContainer else globalSuccessStatus
+
+    def _filterFeedbacks(self):
+        """ Filter the data outputed by a process to keep only these that is not empty.
 
         Parameters
         ----------
@@ -1063,19 +1122,35 @@ class Blueprint(object):
             List of feedbacks that contain at least one error to log or only a title. 
         """
 
-        filteredResult = []
-        globalFailStatus = Status.lowestFailStatus()  #TODO: This must be documented !!
-        globalSuccessStatus = Status.lowestSuccessStatus()
-        for thread, feedback in result.items():
-            if feedback:
-                filteredResult.append(feedback)
-                if thread._failStatus._priority >= globalFailStatus._priority:
-                    globalFailStatus = thread._failStatus
-            else:
-                if thread._successStatus._priority <= globalSuccessStatus._priority:
-                    globalSuccessStatus = thread._successStatus
+        # We always consider that the result should be the lowest success status.
+        globalStatus = Status._DEFAULT
 
-        return filteredResult, globalFailStatus if filteredResult else globalSuccessStatus
+        feedbackContainer = []
+        for threadName, thread in self._threads.items():
+
+            # This meant that the thread have not been set to error or success.
+            if thread._state is Thread.IGNORED:
+                continue
+
+            # Get the feedaback, if there is no feedback for this thread it is clean.
+            feedback = self._process._feedback.get(thread, None)
+            if feedback:
+                feedbackContainer.append(feedback)
+
+            # If there is anything in the feedback we check if we need to increase the fail status and we add the feedback in
+            # the container to return it.
+            # if thread._state is Status.FailStatus:
+            if thread._status._priority > globalStatus._priority:
+                globalStatus = thread._status
+
+            # If the feedback is empty this thread was succesfull, we increase success status if the status of this thread is
+            # higher to the current one retrieved.
+            # elif thread._state is Status.SuccessStatus:
+            #     print thread._status._name, thread._status._priority, globalSuccessStatus._priority
+            #     if thread._status._priority > globalSuccessStatus._priority:
+            #         globalSuccessStatus = thread._status
+
+        return feedbackContainer, globalStatus # if feedbackContainer else globalSuccessStatus
 
 
 class Tag(object):
@@ -1162,73 +1237,104 @@ class ID(six.with_metaclass(MetaID, object)):
 
 
 class Status(object):
+    """The Status define the level of priority of a Thread Feedback as well as the state of a process.
 
-    TYPE_FAIL = 'fail'
-    TYPE_SUCCESS = 'success'
-    TYPE_FEEDBACK = 'feedback'
-    __TYPE_BUILT_IN = 'built-in'
+    The process must be given an original name and a level of priority, the priority must be <0 for a fail status and 
+    >0 for a success status. Other type does not use the priority.
+    The color is an rgb value that will then allow to set the color in an interface.
+    
+    .. notes::
+        The Status object can't be instanciated, instead, the __Status object will be instantiated and returned.
+        The Status class already create some instances of the __Status class to define the bases Status to be Used by 
+        default.
+    """
 
-    class FeedbackStatus(object):
+    class __Status(object):
         
-        _ALL_STATUS = []
+        _ALL_STATUS = {}
 
         def __new__(cls, *args, **kwargs):
             """Allow to store all new levels in the __ALL_LEVELS class variable to return singleton."""
             instance = super(cls.__class__, cls).__new__(cls)
-            cls._ALL_STATUS.append(instance)
+            cls._ALL_STATUS.setdefault(instance.__class__, set()).add(instance)
 
             return instance
         
-        def __init__(self, name, priority, color, type, canBeDefault=True):
+        def __init__(self, name, color, priority=0.0):
 
             self._name = name
             self._priority = priority
             self._color = color
-            self._type = type
 
-            self._canBeDefault = canBeDefault
+    class FailStatus(__Status):
+        
+        def __init__(self, *args, **kwargs):
+            super(self.__class__, self).__init__(*args, **kwargs)
 
-        def __bool__(self):
-            return bool(self._type is Status.TYPE_FAIL or self._type is Status._EXCEPTION)
+    class SuccessStatus(__Status):
+        
+        def __init__(self, *args, **kwargs):
+            super(self.__class__, self).__init__(*args, **kwargs)
 
-        def __nonzero__(self):
-            """This method is here for portability between python 2.x and python 3.x"""
-            return self.__bool__()
+    class FeedbackStatus(__Status):
+        
+        def __init__(self, *args, **kwargs):
+            super(self.__class__, self).__init__(*args, **kwargs) 
 
+    class BuiltInStatus(__Status):
+        
+        def __init__(self, *args, **kwargs):
+            super(self.__class__, self).__init__(*args, **kwargs)
 
-    _DEFAULT =  FeedbackStatus('Default', 0.0, (65, 65, 65), type=__TYPE_BUILT_IN, canBeDefault=True)
+    _DEFAULT =  BuiltInStatus('Default', (65, 65, 65))
 
-    # INFO =  FeedbackStatus('Info', 0.0, (200, 200, 200), type=TYPE_FEEDBACK, canBeDefault=True)
-    PAUSED = FeedbackStatus('Paused', 0.0, (255, 186, 0), type=TYPE_FEEDBACK, canBeDefault=False)
+    # INFO =  FeedbackStatus('Info', (200, 200, 200))
+    PAUSED = FeedbackStatus('Paused', (255, 186, 0))
 
-    SUCCESS = FeedbackStatus('Success', -1.2, (0, 128, 0), type=TYPE_SUCCESS, canBeDefault=True)
-    CORRECT = FeedbackStatus('Correct', -1.1, (22, 194, 15), type=TYPE_SUCCESS, canBeDefault=True)
+    CORRECT = SuccessStatus('Correct', (22, 194, 15), 0.1)
+    SUCCESS = SuccessStatus('Success', (0, 128, 0), 0.2)
 
-    WARNING = FeedbackStatus('Warning', 1.1, (196, 98, 16), type=TYPE_FAIL, canBeDefault=True)
-    ERROR = FeedbackStatus('Error', 1.2, (102, 0, 0), type=TYPE_FAIL, canBeDefault=True)
-    CRITICAL = FeedbackStatus('Critical', 1.3, (150, 0, 0), type=TYPE_FAIL, canBeDefault=False)
+    WARNING = FailStatus('Warning', (196, 98, 16), 1.1)
+    ERROR = FailStatus('Error', (102, 0, 0), 1.2)
+    CRITICAL = FailStatus('Critical', (150, 0, 0), 1.3)
 
-    _EXCEPTION = FeedbackStatus('Exception', float('inf'), (110, 110, 110), type=__TYPE_BUILT_IN, canBeDefault=False)
+    _EXCEPTION = BuiltInStatus('Exception', (110, 110, 110))
+
+    def __new__(cls, type, *args, **kwargs):
+        raise RuntimeError('Can\'t create new instance of type `{0}`.'.format(cls.__name__))
+
+    @classmethod
+    def getAllStatus(cls):
+        return [status for statusTypeList in cls.__Status._ALL_STATUS.values() for status in statusTypeList]
+
+    @classmethod
+    def getAllFailStatus(cls):
+        return cls.__Status._ALL_STATUS[cls.FailStatus]
+
+    @classmethod
+    def getAllSuccessStatus(cls):
+        return cls.__Status._ALL_STATUS[cls.SuccessStatus]
 
     @classmethod
     def lowestFailStatus(cls):
-        return sorted([status for status in cls.FeedbackStatus._ALL_STATUS if status._priority and status._type is cls.TYPE_FAIL], key=lambda x: x._priority)[0]
+        return sorted(cls.getAllFailStatus(), key=lambda x: x._priority)[0]
 
     @classmethod
     def highestFailStatus(cls):
-        return sorted([status for status in cls.FeedbackStatus._ALL_STATUS if status._priority and status._type is cls.TYPE_FAIL], key=lambda x: x._priority)[-1]
+        return sorted(cls.getAllFailStatus(), key=lambda x: x._priority)[-1]
 
     @classmethod
     def lowestSuccessStatus(cls):
-        return sorted([status for status in cls.FeedbackStatus._ALL_STATUS if status._priority and status._type is cls.TYPE_SUCCESS], key=lambda x: x._priority)[0]
+        return sorted(cls.getAllSuccessStatus(), key=lambda x: x._priority)[0]
 
     @classmethod
     def highestSuccessStatus(cls):
-        return sorted([status for status in cls.FeedbackStatus._ALL_STATUS if status._priority and status._type is cls.TYPE_SUCCESS], key=lambda x: x._priority)[-1]
+        return sorted(cls.getAllSuccessStatus(), key=lambda x: x._priority)[-1]
 
 
 class Feedback(object):
     """This onbject contain all the data to describe one feedback that have. been checked in a Process."""
+
     def __init__(self, thread, toDisplay, toSelect, selectMethod=None, help=None):
         
         if len(toDisplay) != len(toSelect):
@@ -1236,9 +1342,8 @@ class Feedback(object):
 
         self._thread = thread
 
-        self._toDisplay = tuple(toDisplay)
-        self._toSelect = tuple(toSelect or toDisplay)
-        self._items = list(zip(toDisplay, toSelect))
+        self._toDisplay = list(toDisplay)
+        self._toSelect = list(toSelect) or self._toDisplay
 
         self._selectMethod = selectMethod or AtUtils.softwareSelection
 
@@ -1246,38 +1351,51 @@ class Feedback(object):
         self._selectMethod(self._toSelect)
 
     def select(self, indexes):
-        self._selectMethod([self._items[i][1] for i in indexes])
+        self._selectMethod([self._toSelect[i] for i in indexes])
 
     def hasFeedback(self):
         return bool(self._toDisplay)
 
+    def append(self, toDisplay, toSelect, selectMethod=None):
+        self._toDisplay.append(toDisplay)
+        self._toSelect.append(toSelect)
+
+        if selectMethod is not None and self._selectMethod is not AtUtils.softwareSelection:
+            self._selectMethod = selectMethod
+
     def iterItems(self):
-        for item in self._items:
+        for item in list(zip(self._toDisplay, self._toSelect)):
             yield item
 
     def __bool__(self):
         return bool(self._toSelect)
 
-    def __nonzero__(self):
-        """This method is here for portability between python 2.x and python 3.x"""
-        return self.__bool__()
+    __nonzero__ = __bool__
+
 
 class Thread(object):
 
-    def __init__(self, title, defaulFailLevel=Status.ERROR, defaultSuccessLevel=Status.SUCCESS, documentation=None):
+    IGNORED = object()
 
-        if not defaulFailLevel._canBeDefault:
-            raise RuntimeError('defaulFailLevel `{}` can not be default level.'.format(defaulFailLevel._name))
-        if not defaultSuccessLevel._canBeDefault:
-            raise RuntimeError('defaultSuccessLevel `{}` can not be default level.'.format(defaultSuccessLevel._name))
+    def __init__(self, title, failStatus=Status.ERROR, successStatus=Status.SUCCESS, documentation=None):
+        if not isinstance(failStatus, Status.FailStatus):
+            raise RuntimeError('`{}` is not a valid fail status.'.format(failStatus._name))
+        if not isinstance(successStatus, Status.SuccessStatus):
+            raise RuntimeError('`{}` is not a valid success status.'.format(successStatus._name))
 
         self._title = title
-        self._defaulFailLevel = defaulFailLevel
-        self._defaultSuccessLevel = defaultSuccessLevel
+
+        self._defaultFailStatus = failStatus
+        self._failStatus = failStatus
+
+        self._defaultSuccessStatus = successStatus
+        self._successStatus = successStatus
+
         self._documentation = documentation
 
-        self._failStatus = defaulFailLevel
-        self._successStatus = defaultSuccessLevel
+        # ----
+        self._state = self.IGNORED
+        self._status = Status._DEFAULT
 
     @property
     def failStatus(self):
@@ -1285,8 +1403,8 @@ class Thread(object):
 
     @failStatus.setter
     def failStatus(self, newStatus):
-        if not isinstance(newStatus, Status.FeedbackStatus):
-            raise TypeError('Fail level can only be an instance or subtype of `{}`.'.format(type(Status.Level)))
+        if not isinstance(newStatus, Status.FailStatus):
+            raise TypeError('Fail Status can only be an instance or subtype of `{}`.'.format(type(Status.FailStatus)))
         self._failStatus = newStatus
 
     @property
@@ -1295,9 +1413,35 @@ class Thread(object):
 
     @successStatus.setter
     def successStatus(self, newStatus):
-        if not isinstance(newStatus, Status.FeedbackStatus):
-            raise TypeError('Success level can only be an instance or subtype of `{}`.'.format(type(Status.Level)))
+        if not isinstance(newStatus, Status.SuccessStatus):
+            raise TypeError('Success Status can only be an instance or subtype of `{}`.'.format(type(Status.SuccessStatus)))
         self._successStatus = newStatus
+
+    def reset(self):
+        self._state = self.IGNORED
+        self._status = Status._DEFAULT
+
+    def _setFail(self, overrideStatus=None):
+        if overrideStatus is not None:
+            if isinstance(overrideStatus, Status.FailStatus):
+                self._status = overrideStatus
+            else:
+                raise TypeError('Fail Status can only be an instance or subtype of `{}`.'.format(type(Status.FailStatus)))
+        else:
+            self._status = self._failStatus
+
+        self._state = Status.FailStatus
+
+    def _setSuccess(self, overrideStatus=None):
+        if overrideStatus is not None:
+            if isinstance(overrideStatus, Status.SuccessStatus):
+                self._status = overrideStatus
+            else:
+                raise TypeError('Success Status can only be an instance or subtype of `{}`.'.format(type(Status.SuccessStatus)))
+        else:
+            self._status = self._successStatus
+
+        self._state = Status.SuccessStatus
     
 
 class Event(object):

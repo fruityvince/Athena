@@ -27,10 +27,10 @@ register = \
 		{
 			'process': 'Athena.ressources.Athena_example.Ajna_Test.maya.processes.noNGons.NoNGons',
 			'category': 'Model Sanity',
-			'links': 
-				(
-					(ID.NoConstructionHistory, Link.CHECK, Link.CHECK),
-				),
+			# 'links': 
+			# 	(
+			# 		(ID.NoConstructionHistory, Link.CHECK, Link.CHECK),
+			# 	),
 		},
 
 	ID.NoTris:
@@ -54,5 +54,8 @@ register = \
 
 parameters = \
 {
-	'recheck': True
+	'recheck': True,
+	'orderFeedbacksByPriority': False,
+	'feedbackDisplayWarning': True,
+	'feedbackDisplayWarningLimit': 100,
 }

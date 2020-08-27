@@ -6,7 +6,6 @@ from maya.api import OpenMaya as om
 
 __all__ = ('NoNGons',)
 
-
 class NoNGons(polygonShape.PolygonShape):
 
     name = 'No nGons'

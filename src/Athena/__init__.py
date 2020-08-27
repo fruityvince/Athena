@@ -87,7 +87,7 @@ def safeReload():
     reload(AtUi)
     reload(AtConstants)
 
-def __reload(verbose=False):
+def _reload(main='__main__', verbose=False):
     """This hidden method is meant to reload all Athena related packages, especially to work on the tool core.
 
     It should not be used by artist and dev that work on processes. It should only be used to work on the API and 
@@ -100,18 +100,25 @@ def __reload(verbose=False):
         So the solution is to reload the baseClass and then the process classes to use the same version. This code will clean 
         all Athena related modules in the sys.modules() except submodules that will be reloaded.
 
-    >>># This must be used before reloading Athena
-    >>>Athena.__reload()
     >>>import Athena
-    >>>reload(Athena)
+    >>>Athena._reload(__name__)
     """
 
-    atPackages = [package['import'] for package in AtUtils.getPackages().values()]
+    import time
+    reloadStartTime = time.time()
 
-    toReload = {}
+    # ---------- Keep functions from AtUtils available in local variables ---------- #
+    # This function will clean all athena packages in sys.modules but we must keep these functions available.
+    _import = AtUtils.importFromStr
+    _reload = AtUtils.reloadModule
+
+    # ---------- Get which modules must be deleted and which must be reloaded ---------- #
     toDelete = {}
+    toReimport = {}
+    atPackages = {package['import'] for package in AtUtils.getPackages().values()}
     for moduleName, module in sys.modules.items():
-        if AtConstants.PROGRAM_NAME not in moduleName:
+        # Skip all modules in sys.modules if they are not related to Athena and skip Athena main module that will be reloaded after.
+        if AtConstants.PROGRAM_NAME not in moduleName or moduleName == __name__:
             continue
 
         # Some name contains modules that are None. We prefer to get rid of them.
@@ -124,21 +131,38 @@ def __reload(verbose=False):
         for package in atPackages:
             if moduleName.startswith(package):
                 toDelete[moduleName] = module
-                toReload[moduleName] = module
-                break                
+                toReimport[moduleName] = module
+                break
         else:
             toDelete[moduleName] = module
 
+    # ---------- Delete all Athena modules ---------- #
+    # Then we delete all modules that must be deleted. After this, this function is unable to call any of its imported Athena modules.
     for moduleName, module in toDelete.items():
-        sys.modules.pop(moduleName)
-        del module
-        print('Remove {}'.format(moduleName))
+        del sys.modules[moduleName]
+        if verbose:
+            print('Remove {}'.format(moduleName))
 
+    # ---------- Reload current module if it is not main ---------- #
+    # Reload the current module to be sure it will be up to date after. Except if the current module is '__main__'.
+    if __name__ != '__main__':
+        _reload(sys.modules[__name__])
+
+    # ---------- Reimport all user Athena packages ---------- #
     # Last, we reimport all Athena packages to make sure the API will detect it.
-    for moduleName in sorted(toReload.keys(), key=lambda x: x.count('.')):
-        AtUtils.importFromStr(moduleName)
-        print('Reload {}'.format(moduleName))
+    for moduleName in sorted(toReimport.keys(), key=lambda x: x.count('.')):
+        _import(moduleName)
+        if verbose:
+            print('Reload {}'.format(moduleName))
+
+    # ---------- Restore the reloaded Athena main module in the __main__ module ---------- #
+    if __name__ != '__main__':
+        setattr(sys.modules[main], __name__, sys.modules[__name__])
+
+    # ---------- Display reload time, even if there is no verbose ---------- #
+    print('[Reloaded in {:.2f}s]'.format(time.time() - reloadStartTime))
 
 
 if __name__ == '__main__':
-    launch(dev=True)
+    _reload(__name__)
+    sys.modules[__name__].launch(dev=True)

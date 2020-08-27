@@ -63,7 +63,7 @@ class NoStaticAnimKeys(AtCore.Process):
         :rtype: list
         """
 
-        self.clearFeedback()
+        self.reset()
 
         staticCurves = []
         staticKeys = {}
@@ -132,14 +132,17 @@ class NoStaticAnimKeys(AtCore.Process):
         self.staticCurves = staticCurves
         self.staticKeys = staticKeys
 
-        self.addFeedback(self.STATIC_CURVES,
-                         toDisplay=staticCurves,
-                         toSelect=staticCurves
-                    )
-        self.addFeedback(thread=self.STATIC_KEYS,
-                         toDisplay=staticKeys,
-                         toSelect=staticKeys,
-                    )
+        if staticCurves:
+            self.setFail(self.STATIC_CURVES)
+            self.setFeedback(self.STATIC_CURVES, toDisplay=staticCurves, toSelect=staticCurves)
+        else:
+            self.setSuccess(self.STATIC_CURVES)
+
+        if staticKeys:
+            self.setFail(self.STATIC_KEYS)
+            self.setFeedback(thread=self.STATIC_KEYS, toDisplay=staticKeys, toSelect=staticKeys)
+        else:
+            self.setSuccess(self.STATIC_KEYS)
 
         self.isChecked = True
         return staticCurves, staticKeys

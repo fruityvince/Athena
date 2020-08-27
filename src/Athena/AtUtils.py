@@ -238,14 +238,16 @@ def importFromStr(moduleStr, verbose=False):
     return module
 
 
-def reload(module):
+def reloadModule(module):
 
     moduleName = module.__name__
 
     if moduleName in sys.modules:
-        del module
+        del sys.modules[moduleName]
+    else:
+        raise ImportError('Module {0} not in sys.modules'.format(moduleName))
 
-    importFromStr(moduleName)
+    return importFromStr(moduleName)
 
 
 # could be only with instance of class. (get inheritance and return dict with each one as key and list of overriden as value)

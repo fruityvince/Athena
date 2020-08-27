@@ -138,9 +138,6 @@ class Athena(QtWidgets.QMainWindow):
         self.lab_QAction = QtWidgets.QAction(self.resourcesManager.get('lab.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), "[Placeholder] Access Lab", self.help_QMenu)
         self.help_QMenu.addAction(self.lab_QAction)
 
-        self.documentation_QAction = QtWidgets.QAction(self.resourcesManager.get('documentation.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), "[Placeholder] Techical Documentation", self.help_QMenu)
-        self.help_QMenu.addAction(self.documentation_QAction)
-
         self.share_QAction = QtWidgets.QAction(self.resourcesManager.get('share.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), "[Placeholder] Share", self.help_QMenu)
         self.help_QMenu.addAction(self.share_QAction)
 
@@ -148,6 +145,9 @@ class Athena(QtWidgets.QMainWindow):
         if self.dev:
             self.reloadBlueprints_QAction = QtWidgets.QAction(self.resourcesManager.get('reload.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), "Reload Blueprints", self.dev_QMenu)
             self.dev_QMenu.addAction(self.reloadBlueprints_QAction)
+
+            self.documentation_QAction = QtWidgets.QAction(self.resourcesManager.get('documentation.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), "[Placeholder] Techical Documentation", self.help_QMenu)
+            self.dev_QMenu.addAction(self.documentation_QAction)
 
         # -- Context & Environment Toolbar
         self.environment_toolbar = QtWidgets.QToolBar('Environment', self)
@@ -244,9 +244,14 @@ class Athena(QtWidgets.QMainWindow):
         self.runAllCheck_QAction.triggered.connect(self.processes_ProcessesScrollArea.runAllCheck, QtCore.Qt.UniqueConnection)
         self.runAllFix_QAction.triggered.connect(self.processes_ProcessesScrollArea.runAllFix, QtCore.Qt.UniqueConnection)
 
+        # -- Help Menu
+        self.openWiki_QAction.triggered.connect(partial(QtGui.QDesktopServices.openUrl, AtConstants.WIKI_LINK), QtCore.Qt.UniqueConnection)
+        self.reportBug_QAction.triggered.connect(partial(QtGui.QDesktopServices.openUrl, AtConstants.REPORT_BUG_LINK), QtCore.Qt.UniqueConnection)
+
         # -- Dev Menu
         if self.dev:
             self.reloadBlueprints_QAction.triggered.connect(self.reloadBlueprintsModules, QtCore.Qt.UniqueConnection)
+            self.documentation_QAction.triggered.connect(partial(QtGui.QDesktopServices.openUrl, AtConstants.WIKI_LINK), QtCore.Qt.UniqueConnection)
 
         # Action Toolbar
         self.action_Qtoolbar.topLevelChanged.connect(self.setMinimal, QtCore.Qt.UniqueConnection)
@@ -659,7 +664,7 @@ class ProcessWidget(QtWidgets.QWidget):
 
         self._status = AtCore.Status._DEFAULT
         self.isOpened = False
-        self.__frameQColor = QtGui.QColor(*self._status._color)
+        self.__frameQColor = QtGui.QColor(*self._status._color)  # This QColor object will be updated (no new instance everytime color will change)
 
         self._feedback = None
 
@@ -668,7 +673,7 @@ class ProcessWidget(QtWidgets.QWidget):
         self.connectUi()
 
     def buildUi(self):
-        """ Create each widget that constitue the ProcessWidget """
+        """ Create each widget that are part of the ProcessWidget """
 
         # -- Enable CheckBox
         self.enable_QCheckBox = QtWidgets.QRadioButton(self)
@@ -892,30 +897,6 @@ class ProcessWidget(QtWidgets.QWidget):
 
         return self._feedback
 
-    @feedback.setter
-    def feedback(self, value):
-        """ `_feedback` setter that allow to show feedback in the tree widget.
-
-        parameters:
-        -----------
-        value: list(dict(), ...)
-            List of data to create in the list widget. This value should be the feedback of a process stored in a blueprint.
-        """
-
-        self._feedback = value
-
-        if value is None:
-            self.processDisplay.setVisible(self.isOpened)
-            self.closeTraceback()
-            return
-
-        elif isinstance(value, str):  # If the value is a `str` it should be display flat in the widget.
-            self.processDisplay.logTraceback(value)  # Exception occured, print it in the widget
-
-        else:
-            self.processDisplay.logFeedback(value)  # Error found, log them in the widget
-        self.openTraceback()
-
     @property
     def status(self):
         return self._status
@@ -925,6 +906,20 @@ class ProcessWidget(QtWidgets.QWidget):
 
         self._status = newStatus
         self.__frameQColor.setRgb(*newStatus._color)
+
+    def setFeedback(self, feedback):
+        self._feedback = feedback
+
+        if not feedback:
+            self.processDisplay.setVisible(self.isOpened)
+            self.closeTraceback()
+            return
+
+        if isinstance(feedback, list) and isinstance(feedback[0], AtCore.Feedback):
+            self.processDisplay.logFeedback(feedback)
+        elif isinstance(feedback, Exception):
+            self.processDisplay.logTraceback(feedback)
+        self.openTraceback()
 
     def toggleTraceback(self):
         """Switch visibility of the traceback widget. """
@@ -997,17 +992,16 @@ class ProcessWidget(QtWidgets.QWidget):
 
                 self.status = state
                 if state:
-                    self.feedback = result
+                    self.setFeedback(result)
                     self.fix_QPushButton.setVisible(self.isFixable)
                 else:
-                    self.feedback = None
+                    self.setFeedback(None)
                     self.fix_QPushButton.setVisible(False)
-                    self.closeTraceback()
 
-            except Exception as error:
+            except Exception as exception:
                 self.status = AtCore.Status._EXCEPTION  # The process encounter an exception during it's execution.
-                self.feedback = traceback.format_exc(error).rstrip() #TODO: Test another way
-                traceback.print_exc(error)
+                self.setFeedback(exception)
+                traceback.print_exc(exception)
 
     def execFix(self):
         """ Run the `fix` method of the Blueprint's Process.
@@ -1021,10 +1015,10 @@ class ProcessWidget(QtWidgets.QWidget):
             try:
                 result = self.blueprint.fix()
 
-            except Exception as error:
+            except Exception as exception:
                 self.status = AtCore.Status._EXCEPTION  # The process encounter an exception during it's execution.
-                self.feedback = traceback.format_exc(error).rstrip() #TODO: Test another way
-                traceback.print_exc(error)
+                self.setFeedback(exception)
+                traceback.print_exc(exception)
                 return
 
         # After a fix, re-launch a check to ensure everything is clean.
@@ -1045,10 +1039,10 @@ class ProcessWidget(QtWidgets.QWidget):
                     result.setParent(self, QtCore.Qt.Window)
                     result.show()
 
-            except Exception as error:
+            except Exception as exception:
                 self.status = AtCore.Status._EXCEPTION  # The process encounter an exception during it's execution.
-                self.feedback = traceback.format_exc(error).rstrip() #TODO: Test another way
-                traceback.print_exc(error)
+                self.setFeedback(exception)
+                traceback.print_exc(exception)
 
     class ExecContext(object):
 
@@ -1072,6 +1066,13 @@ class ProcessWidget(QtWidgets.QWidget):
 
 
 class _AbstractLogTreeWidget(QtWidgets.QTreeWidget):
+    """Abstract parent class for tree widgets in ProcessDisplayWidget.
+
+    This class is meant to be subclassed by custom tree widget to display things in ProcessDisplayWidget.
+    It will override the sizeHint method to allow TreeWidget to rescale automatically based on it's content.
+
+    """
+
     def __init__(self, parent=True):
         super(_AbstractLogTreeWidget, self).__init__(parent)
 
@@ -1099,7 +1100,7 @@ class _AbstractLogTreeWidget(QtWidgets.QTreeWidget):
         # We always include the height of the horizontalScrollBar to be sure it will not hide a feedback.
         height += self.horizontalScrollBar().height()
 
-        newSizeHint = QtCore.QSize(sizeHint.width(), height + 5)  # +5 if s fixed offset to add some free space under the latest feedback.
+        newSizeHint = QtCore.QSize(sizeHint.width(), height + 5)  # +5 is a fixed offset to add some free space under the latest feedback.
         return newSizeHint
 
     def minimumSizeHint(self):
@@ -1153,11 +1154,11 @@ class FeedbackWidget(_AbstractLogTreeWidget):
         contextMenu.addSeparator()
 
         expandAll_QAction = QtWidgets.QAction(self.resourcesManager.get('bottom-arrow.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), 'Expand All', contextMenu)
-        expandAll_QAction.triggered.connect(self.expandAll)
+        expandAll_QAction.triggered.connect(self.expandAllFeedback)
         contextMenu.addAction(expandAll_QAction)
 
         collapseAll_QAction = QtWidgets.QAction(self.resourcesManager.get('right-arrow.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), 'Collapse All', contextMenu)
-        collapseAll_QAction.triggered.connect(self.collapseAll)
+        collapseAll_QAction.triggered.connect(self.collapseAllFeedback)
         contextMenu.addAction(collapseAll_QAction)
 
         contextMenu.popup(QtGui.QCursor.pos())
@@ -1176,6 +1177,7 @@ class FeedbackWidget(_AbstractLogTreeWidget):
 
             if feedback._toDisplay:
                 parent = QtWidgets.QTreeWidgetItem([str(feedback._thread._title), '        found {0}'.format(str(len(feedback._toDisplay)))])
+                # parent.setForeground(1, QtGui.QColor(*thread._status._color))  # Color the number of issue with the status color.
                 parent.setChildIndicatorPolicy(QtWidgets.QTreeWidgetItem.ShowIndicator)
             else:
                 parent = QtWidgets.QTreeWidgetItem([str(feedback._thread._title)])
@@ -1198,14 +1200,14 @@ class FeedbackWidget(_AbstractLogTreeWidget):
 
     def expandFeedback(self, item):
         with BusyCursor():
-            self.clearItemChildren(item)
-
             feedback = item.data(0, QtCore.Qt.UserRole)
+
             for toDisplay, toSelect in feedback.iterItems():
                 if not toDisplay:
                     continue
                 child = QtWidgets.QTreeWidgetItem([str(toDisplay)])
                 item.addChild(child)
+                #FIXME: Internal C++ object (PySide2.QtWidgets.QTreeWidgetItem) already deleted. (Raised when Pandora is init before first Athena Launch)
             self.sizeChanged.emit(self.sizeHint())
 
     def collapseFeedback(self, item):
@@ -1264,7 +1266,7 @@ class TracebackWidget(QtWidgets.QPlainTextEdit):
         self.setLineWrapMode(QtWidgets.QPlainTextEdit.NoWrap)
         self.setReadOnly(True)
 
-        #WATCHME: It looks like for the first call off `self.horizontalScrollBar().height()` the value is wrong...
+        #WATCHME: It looks like for the first call off `self.horizontalScrollBar().height()` in sizeHint the value is wrong...
         self.horizontalScrollBar().setFixedHeight(12)
 
     def contextMenuEvent(self, event):
@@ -1293,8 +1295,8 @@ class TracebackWidget(QtWidgets.QPlainTextEdit):
     def minimumSizeHint(self):
         return self.sizeHint()
 
-    def logTraceback(self, traceback):
-        self.document().setPlainText(traceback)
+    def logTraceback(self, exception):
+        self.document().setPlainText(traceback.format_exc(exception).rstrip())
 
         # When the text is too long and because the cursor is at the end, the scrollBar can already be on the right.
         self.moveCursor(QtGui.QTextCursor.Start)
@@ -1343,8 +1345,6 @@ class ProcessDisplayWidget(QtWidgets.QWidget):
     def __init__(self, parent):
         super(ProcessDisplayWidget, self).__init__(parent)
 
-        self.parent = parent  #FIXME: Do not access parent of the widget !!
-
         self.resourcesManager = AtUtils.RessourcesManager(__file__, backPath='..{0}ressources'.format(os.sep), key=AtConstants.PROGRAM_NAME)
 
         self.buildUi()
@@ -1363,7 +1363,6 @@ class ProcessDisplayWidget(QtWidgets.QWidget):
     def setupUi(self):
         # Seems to not work on PySide 1
         # self.header().setSectionResizeMode(QtWidgets.QHeaderView.Interactive)
-        # self.mainLayout.setSizeConstraint(QtWidgets.QLayout.SetMinAndMaxSize)
 
         self.feedbackWidget.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
 

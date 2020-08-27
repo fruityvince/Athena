@@ -66,3 +66,6 @@ BLUEPRINT_TEMPLATE = {
 }
 
 NO_DOCUMENTATION_AVAILABLE = '\nNo documentation available for this process.\n'
+
+WIKI_LINK = 'https://github.com/gpijat/Athena'
+REPORT_BUG_LINK = 'https://github.com/gpijat/Athena/issues'
