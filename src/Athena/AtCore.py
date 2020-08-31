@@ -12,6 +12,27 @@ from Athena import AtUtils
 from Athena import AtConstants
 
 
+class ProcessDataDescriptor(object):
+
+    def __init__(self):
+        self.__DATA = {}
+
+    def __get__(self, instance, cls):
+        if cls in self.__DATA:
+            return self.__DATA[cls]
+
+        raise AttributeError('Object {0} does not have any data for attribute {1}', instance.__name__, self.__name)
+
+    def __del__(self):
+        raise NotImplementedError('Unable to delete Process Data')
+
+
+class ProcessMeta(type):
+
+    def __new__(self, className, bases, attrs):
+        return super(ProcessMeta, self).__new__(className, bases, attrs)
+
+
 class Process(object):
     """Abstract class from which any Athena User Process have to inherit.
 
@@ -20,6 +41,26 @@ class Process(object):
     It also comes with some methods to manage the internal feedback and the potentially connected QProgressbar.
     There is 3 not implemented methods to override if needed (`check`, `fix` and `tool`)
     """
+
+    __NON_OVERRIDABLE_ATTRIBUTES = \
+    {
+        '_resetThreads',
+        '_clearFeedback',
+        'addFeedback',
+        'DATA',
+        'getFeedback',
+        'getFeedbacks',
+        'reset',
+        'setFeedback',
+        'setProgressValue',
+    }
+
+    DATA = {}
+
+    _name_ = str()
+    _doc_ = str()
+
+    # __metaclass__ = ProcessMeta
 
     def __new__(cls, *args, **kwargs):
         """Generate a new class instance and setup its default attributes.
@@ -34,23 +75,30 @@ class Process(object):
 
         # Create the instance
         instance = super(Process, cls).__new__(cls, *args, **kwargs)
+        instance.__initArgs = args
+        instance.__initKwargs = kwargs
 
-        # Setup the dict of threads on the instance object.
+        # Instance internal data (Must not be altered by user)
         instance.__threads = {}
         for memberName, member in inspect.getmembers(cls):
             if isinstance(member, Thread):
-                instance.__threads[memberName] = member
+                processThread = ProcessThread(member)
+                instance.__threads[memberName] = processThread
+                instance.__dict__[memberName] = processThread
 
-        # Private instance attributes (Used for internal management)
-        instance._name = instance.__class__.__name__
-        instance._feedback = {}
-        instance._stats = {}
-        instance._progressbar = None
+        instance.__feedbacks = {}
+        instance.__progressbar = None
+        instance.__setProgressValue = None
+
+        instance.__stats = {}
+
+        # Sunder instance attribute (Can be overrided user to custom the process)
+        instance._name_ = cls._name_ or cls.__name__
+        instance._doc_ = cls._doc_ or cls.__doc__
 
         # Public instance attribute (To be used by user to manage process data)
         instance.toCheck = []
         instance.toFix = []
-        instance.data = []
         instance.isChecked = False
 
         # Sunder instance attribute (To be used by user to custom the process)
@@ -58,35 +106,29 @@ class Process(object):
 
         return instance
 
-    def __init__(self):
-        pass
-
     def __repr__(self):
-        """Format the representation of a process"""
-        return '<Process {0} at {1}>'.format(self.name, hex(id(self)))
-        
-    def check(self):
-        raise NotImplementedError
-        
-    def fix(self):
-        raise NotImplementedError
-
-    def tool(self):
-        raise NotImplementedError
+        return '<Process {0} at {1}>'.format(self._name_, hex(id(self)))
 
     @property
-    def name(self):
-        """Return the process name, default name is class name"""
-        return self._name
-
-    @name.setter
-    def name(self, value):
-        """Define the process name """
-        self._name = str(value)
+    def data(self):
+        return self.DATA
 
     @property
     def feedback(self):
-        return self._feedback
+        return self.__feedback
+
+    @property
+    def threads(self):
+        return self.__threads
+    
+    def check(self, *args, **kwargs):
+        raise NotImplementedError
+        
+    def fix(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def tool(self, *args, **kwargs):
+        raise NotImplementedError
 
     def setProgressValue(self, value, text=None):
         """Set the progress value of the process progressBar if exist.
@@ -99,62 +141,15 @@ class Process(object):
             Text to display in the progressBar, if None, the Default is used.
         """
 
-        if self._progressbar is None:
+        if self.__progressbar is None:
             return
 
         assert isinstance(value, numbers.Number), 'Argument `value` is not numeric'
         
-        self._progressbar.setValue(float(value))
+        self.__progressbar.setValue(float(value))
         
-        if text and text != self._progressbar.text():
-            self._progressbar.setFormat(AtConstants.PROGRESSBAR_FORMAT.format(text))
-
-    # def addFeedback(self, title, toDisplay, toSelect=None, documentation=None):
-    #     """Add a new feedback for the process to display
-
-    #     Parameters
-    #     -----------
-    #     title: str
-    #         The title linked to this feedback.
-    #     toDisplay: <iterable> or Ellipsis
-    #         Iterable object containing all objects found for this title, these objetcs will be displayed
-    #         and used for selection if `toSelect` is None.
-    #         If toDisplay is Ellipsis, this feedback can be used to only display a title.
-    #     toSelect: <iterable> or None
-    #         If an iterable is provided it should be ordered like the `toDisplay` iterable to match display
-    #         and selection. If set to None, the objects used for selection will be thoses used for display.
-    #     documentation: str or None
-    #         This allow to affect a documentation for this feedback.
-    #     """
-
-    #     assert title, 'A title is required to add a new feedback'
-
-    #     if not toDisplay:
-    #         return
-
-    #     # If toDisplay is not None check if it is necessary to conform it. Else, add None to the value to handle a no display.
-    #     if toDisplay is not Ellipsis:
-
-    #         # Check if toDisplay is conform, if it is not a list or a tuple, cast it to tuple.
-    #         if not hasattr(toDisplay, '__iter__'):
-    #             toDisplay = (toDisplay,)
-
-    #         # Check toSelect, if it have not been given, set it to be equal to toDisplay, if it is not a list or a tuple cast it to tuple.
-    #         if toSelect is None:
-    #             toSelect = toDisplay
-    #         elif not hasattr(toSelect, '__iter__'):
-    #             toSelect = (toSelect,)
-
-    #         # Check if there is the same amount of object toDisplay and toSelect.
-    #         if len(toSelect) != len(toDisplay):
-    #             toSelect = toDisplay
-
-    #     self._feedback.append({
-    #         'title': title,
-    #         'toDisplay': toDisplay,
-    #         'toSelect': toSelect,
-    #         'documentation': documentation
-    #     })
+        if text and text != self.__progressbar.text():
+            self.__progressbar.setFormat(AtConstants.PROGRESSBAR_FORMAT.format(text))
 
     def reset(self):
         self._resetThreads()
@@ -166,24 +161,16 @@ class Process(object):
 
     def _clearFeedback(self):
         """Clear all feedback for this process"""
-        self._feedback.clear()
+        self.__feedbacks.clear()
 
-    def setFail(self, thread, overrideStatus=None):
-        thread._setFail(overrideStatus=overrideStatus)
+    def getFeedbacks(self):
+        return self.__feedbacks
 
-    def setAllFail(self):
-        for thread in self.__threads.values():
-            self.setFail(thread)
-
-    def setSuccess(self, thread, overrideStatus=None):
-        thread._setSuccess(overrideStatus=overrideStatus)
-
-    def setAllSuccess(self):
-        for thread in self.__threads.values():
-            self.setSuccess(thread)
+    def getFeedback(self, thread):
+        return self.__feedbacks.get(thread, None)
 
     def addFeedback(self, thread, toDisplay, toSelect, selectMethod=None):
-        feedback = self._feedback.get(thread, None)
+        feedback = self.getFeedback(thread)
         if feedback is None:
             self.setFeedback(thread, (toDisplay,), (toSelect,), selectMethod=selectMethod)
             return
@@ -191,7 +178,7 @@ class Process(object):
         feedback.append(toDisplay, toSelect)
 
     def setFeedback(self, thread, toDisplay, toSelect, selectMethod=None):
-        self._feedback[thread] = Feedback(thread, toDisplay, toSelect, selectMethod=selectMethod)
+        self.__feedbacks[thread] = Feedback(thread, toDisplay, toSelect, selectMethod=selectMethod)
 
 
 # Automatic Decorator
@@ -219,7 +206,6 @@ def automatic(cls):
 
             self.toCheck = type(self.toCheck)()
             self.toFix = type(self.toFix)()
-            self.data = type(self.data)()
 
             result = check_(self, *args, **kwargs)
 
@@ -328,15 +314,15 @@ class Register(object):
             - env  # (Current targeted env)
         """
 
-        if not isinstance(other, self.__class__):
+        if not isinstance(other, Register):
             return False
 
         return all((
-            self._software == other.software,
+            self._software == other._software,
             self._contexts == other._contexts,
-            self._blueprints == other.blueprints,
-            self._context == other.context,
-            self._env == other.env
+            self._blueprints == other._blueprints,
+            self._context == other._context,
+            self._env == other._env
         ))
 
     @property
@@ -502,13 +488,14 @@ class Register(object):
             AtUtils.reloadModule(envModule)
 
         # Try to access the `blueprints` variable in the env module
+        header = getattr(envModule, 'header', ())
         blueprints = getattr(envModule, 'register', {})
         ID.flush()
 
         # Generate a blueprint object for each process retrieved in the `blueprint` variable of the env module.
         self._blueprints = blueprintObjects = []
-        for i in range(len(blueprints)):
-            blueprintObjects.append(Blueprint(blueprint=blueprints[i], verbose=self.verbose))
+        for id_ in header:
+            blueprintObjects.append(Blueprint(blueprint=blueprints[id_], verbose=self.verbose))
         
         # Default resolve for blueprints if available in batch, call the `resolveLinks` method from blueprints to change the targets functions.
         batchLinkResolveBlueprints = [blueprintObject if blueprintObject._inBatch else None for blueprintObject in blueprintObjects]
@@ -640,18 +627,17 @@ class Blueprint(object):
 
         self.verbose = verbose
 
-        self.blueprint = blueprint
-        self.processStr = blueprint.get('process', None)
+        self._blueprint = blueprint
+        self._processStrPath = blueprint.get('process', None)
         self.category = blueprint.get('category', 'Other')
+        self._parameters = self._blueprint.get('parameters', {})
 
         initArgs, initKwargs = self.getArguments('__init__')
-        self._module = None
-        self._process = self.getProcess(initArgs, initKwargs)
-        self._threads = self.getThreads()
+        self._module, _process = AtUtils.importProcessPath(self._processStrPath)
+        self._process = _process(*initArgs, **initKwargs)
         self._links = {AtConstants.CHECK: [], AtConstants.FIX: [], AtConstants.TOOL: []}
-        self._options = blueprint.get('options', {})
 
-        self._name = AtUtils.camelCaseSplit(self._process._name)
+        self._name = AtUtils.camelCaseSplit(self._process._name_)
         self._docstring = self.createDocstring()
 
         self._check = None
@@ -677,13 +663,7 @@ class Blueprint(object):
 
     def __repr__(self):
         """Return the representation of the object."""
-
         return "<{0} '{1}' object at {2}'>".format(self.__class__.__name__, self._process.__class__.__name__, hex(id(self)))
-
-    @property
-    def options(self):
-        """Get the Blueprint's options"""
-        return self._options
 
     @property
     def name(self):
@@ -730,6 +710,9 @@ class Blueprint(object):
         """Get the Blueprint's non blocking state"""
         return self._isNonBlocking
 
+    def getParameter(parameter, default=None):
+        return self._parameters.get(parameter, default)
+
     def getLowestFailStatus(self):
         return next(iter(sorted((thread._failStatus for thread in self._threads.values()), key=lambda x: x._priority)), None)
 
@@ -758,12 +741,10 @@ class Blueprint(object):
         args, kwargs = self.getArguments(AtConstants.CHECK)
         returnValue = self._check(*args, **kwargs)  #TODO: Not used !!
 
-        result, feedbackLevel = self._filterFeedbacks()
-
         if links:
             self.runLinks(AtConstants.CHECK)
         
-        return result, feedbackLevel
+        return self._filterFeedbacks()
 
     def fix(self, links=True):
         """This is a wrapper for the process fix that will automatically execute it with the right parameters.
@@ -780,7 +761,7 @@ class Blueprint(object):
         """
 
         if self._fix is None:
-            return None
+            return None, None
 
         args, kwargs = self.getArguments(AtConstants.FIX)
         returnValue = self._fix(*args, **kwargs)
@@ -788,7 +769,7 @@ class Blueprint(object):
         if links:
             self.runLinks(AtConstants.FIX)
 
-        return returnValue
+        return self._filterFeedbacks()
 
     def tool(self, links=True):
         """This is a wrapper for the process tool that will automatically execute it with the right parameters.
@@ -842,7 +823,7 @@ class Blueprint(object):
             => tuple(list, dict)
         """
 
-        arguments = self.blueprint.get('arguments', None)
+        arguments = self._blueprint.get('arguments', None)
         if arguments is None:
             return ([], {})
 
@@ -851,46 +832,6 @@ class Blueprint(object):
             return ([], {})
 
         return arguments
-
-    def getProcess(self, args, kwargs):
-        """Retrieve the process path and create an instance.
-        
-        Parameters
-        ----------
-        args: list
-            List of all args expected by the process __init__ method.
-        kwargs: dict
-            dict of all kwargs expected by the process __init__ method.
-
-        Returns
-        -------
-        object
-            An instance of the process class.
-        """
-
-        if self.processStr is None:
-            raise RuntimeError() #TODO Add an error message here
-
-        moduleStr, _, processStr = self.processStr.rpartition('.')
-        self._module = module = AtUtils.importFromStr(moduleStr)
-        if module is None:
-            raise RuntimeError('Can not import module {0}'.format(moduleStr))
-
-        processClass = getattr(module, processStr)
-        if not issubclass(processClass, Process):
-            raise RuntimeError('Class {0} from {1} is not a subclass of {2}'.format(processStr, moduleStr, Process))
-
-        return processClass(*args, **kwargs)
-
-    def getThreads(self):
-        members = inspect.getmembers(self._process)
-
-        threads = {}
-        for memberName, member in members:
-            if isinstance(member, Thread):
-                threads[memberName] = member
-
-        return threads
 
     def setupCore(self):
         """Setup all data for the wrapping method (check, fix, tool...) and bool to know if isCheckable, isFixable, 
@@ -919,7 +860,7 @@ class Blueprint(object):
         This method will setup the tags from the Tags given in the env module to affect the process behaviour.
         """
 
-        tags = self.blueprint.get('tags', None)
+        tags = self._blueprint.get('tags', None)
         if tags is None:
             return
 
@@ -967,7 +908,7 @@ class Blueprint(object):
         if not linkedObjects:
             return
 
-        links = self.blueprint.get('links', None)
+        links = self._blueprint.get('links', None)
         if links is None:
             return
 
@@ -987,36 +928,36 @@ class Blueprint(object):
     def overrideLevels(self):
         """Override the arguments level of the Process Blueprint from the data in the env module."""
 
-        levelOverrides = self.blueprint.get('level', None)
-        if levelOverrides is None:
+        statusOverrides = self._blueprint.get('statusOverrides', None)
+        if statusOverrides is None:
             return
 
-        for overrideName, overridesDict in levelOverrides.iteritems():
-            if not hasattr(self._process, overrideName):
-                raise RuntimeError('Process {0} have not thread named {1}.'.format(self._process.name, overrideName))
-            thread = getattr(self._process, overrideName)
+        for threadName, overridesDict in statusOverrides.iteritems():
+            if not hasattr(self._process, threadName):
+                raise RuntimeError('Process {0} have not thread named {1}.'.format(self._process._name_, threadName))
+            thread = getattr(self._process, threadName)
             
             # Get the fail overrides for the current name
-            if 'fail' in overridesDict:
-                feedbackLevel = overridesDict[Status.TYPE_FAIL]
-                if feedbackLevel._type is not Status.TYPE_FAIL:
-                    raise RuntimeError('Fail feedback level override for {0} "{1}" must be a {2} feedback.'.format(
-                        self._process.name,
-                        overrideName,
-                        Status.TYPE_FAIL
+            status = overridesDict.get(Status.FailStatus, None)
+            if status is not None:
+                if not isinstance(status, Status.FailStatus):
+                    raise RuntimeError('Fail feedback status override for {0} "{1}" must be an instance or subclass of {2}'.format(
+                        self._process._name_,
+                        threadName,
+                        Status.FailStatus
                     ))
-                thread.failStatus = feedbackLevel
+                thread._failStatus = status
             
             # Get the success overrides for the current name
-            if 'success' in overridesDict:
-                feedbackLevel = overridesDict[Status.TYPE_SUCCESS]
-                if feedbackLevel._type is not Status.TYPE_SUCCESS:
-                    raise RuntimeError('Success feedback level override for {0} "{1}" must be a {2} feedback.'.format(
-                        self._process.name,
-                        overrideName,
-                        Status.TYPE_SUCCESS
+            status = overridesDict.get(Status.SuccessStatus, None)
+            if status is not None:
+                if not isinstance(status, Status.SuccessStatus):
+                    raise RuntimeError('Success feedback status override for {0} "{1}" must be an instance or subclass of {2}'.format(
+                        self._process._name_,
+                        threadName,
+                        Status.SuccessStatus
                     ))
-                thread.successStatus = feedbackLevel
+                thread._successStatus = status
 
     def setProgressbar(self, progressbar):
         """ Called in the ui this method allow to give access to the progress bar for the user
@@ -1038,8 +979,8 @@ class Blueprint(object):
             Return the formatted docstring to be more readable and also display the path of the process.
         """
 
-        docstring = self._process.__doc__ or AtConstants.NO_DOCUMENTATION_AVAILABLE
-        docstring += '\n {0} '.format(self.processStr)
+        docstring = self._process._doc_ or AtConstants.NO_DOCUMENTATION_AVAILABLE
+        docstring += '\n {0} '.format(self._processStrPath)
 
         docFormat = {}
         for match in re.finditer(r'\{(\w+)\}', docstring):
@@ -1126,22 +1067,18 @@ class Blueprint(object):
         globalStatus = Status._DEFAULT
 
         feedbackContainer = []
-        for threadName, thread in self._threads.items():
-
-            # This meant that the thread have not been set to error or success.
-            if thread._state is Thread.IGNORED:
-                continue
+        for processThreadName, processThread in self._process.threads.iteritems():
 
             # Get the feedaback, if there is no feedback for this thread it is clean.
-            feedback = self._process._feedback.get(thread, None)
+            feedback = self._process.getFeedback(processThread)
             if feedback:
                 feedbackContainer.append(feedback)
 
             # If there is anything in the feedback we check if we need to increase the fail status and we add the feedback in
             # the container to return it.
             # if thread._state is Status.FailStatus:
-            if thread._status._priority > globalStatus._priority:
-                globalStatus = thread._status
+            if processThread._status._priority > globalStatus._priority:
+                globalStatus = processThread._status
 
             # If the feedback is empty this thread was succesfull, we increase success status if the status of this thread is
             # higher to the current one retrieved.
@@ -1205,13 +1142,13 @@ class Link(object):
 class MetaID(type):
         
     def __getattr__(cls, value):
+        id_ = hex(hash(value))
 
-        if value not in cls._data_:
-            idCount = len(cls._data_)
-            setattr(cls, value, idCount)
-            cls._data_[value] = idCount
+        if id_ not in cls._DATA:
+            setattr(cls, value, id_)
+            cls._DATA[value] = id_
 
-        return value
+        return id_
 
     def __getattribute__(cls, value):
         
@@ -1223,17 +1160,17 @@ class MetaID(type):
 #TODO: six is used to ensure compatibility between python 2.x and 3.x, replace by `object, metaclass=MetaID`
 class ID(six.with_metaclass(MetaID, object)):
     
-    _data_ = {}
+    _DATA = {}
 
     def __new__(cls):
         raise NotImplementedError('{0} is not meant to be instanciated.'.format(cls))
 
     @classmethod
     def flush(cls):
-        for key in cls._data_:
+        for key in cls._DATA:
             delattr(cls, key)
         
-        cls._data_.clear()
+        cls._DATA.clear()
 
 
 class Status(object):
@@ -1375,8 +1312,6 @@ class Feedback(object):
 
 class Thread(object):
 
-    IGNORED = object()
-
     def __init__(self, title, failStatus=Status.ERROR, successStatus=Status.SUCCESS, documentation=None):
         if not isinstance(failStatus, Status.FailStatus):
             raise RuntimeError('`{}` is not a valid fail status.'.format(failStatus._name))
@@ -1393,35 +1328,51 @@ class Thread(object):
 
         self._documentation = documentation
 
-        # ----
-        self._state = self.IGNORED
-        self._status = Status._DEFAULT
-
     @property
     def failStatus(self):
         return self._failStatus
-
-    @failStatus.setter
-    def failStatus(self, newStatus):
-        if not isinstance(newStatus, Status.FailStatus):
-            raise TypeError('Fail Status can only be an instance or subtype of `{}`.'.format(type(Status.FailStatus)))
-        self._failStatus = newStatus
 
     @property
     def successStatus(self):
         return self._successStatus
 
-    @successStatus.setter
-    def successStatus(self, newStatus):
-        if not isinstance(newStatus, Status.SuccessStatus):
-            raise TypeError('Success Status can only be an instance or subtype of `{}`.'.format(type(Status.SuccessStatus)))
-        self._successStatus = newStatus
+
+class ProcessThread(Thread):
+
+    def __init__(self, thread):
+
+        super(ProcessThread, self).__init__(
+            title=thread._title, 
+            failStatus=thread._defaultFailStatus,
+            successStatus=thread._defaultSuccessStatus,
+            documentation=thread._documentation
+        )
+
+        self._thread = thread
+        self._enabled = True
+
+        self._state = Status.SuccessStatus
+        self._status = self._successStatus
+
+    @property
+    def thread(self):
+        return self._thread
+    
+    @property
+    def state(self):
+        return self._state
 
     def reset(self):
-        self._state = self.IGNORED
-        self._status = Status._DEFAULT
+        self._state = Status.SuccessStatus
+        self._status = self._successStatus
 
-    def _setFail(self, overrideStatus=None):
+    def enable(self):
+        self._enabled = True
+
+    def disable(self):
+        self._enabled = False
+
+    def setFail(self, overrideStatus=None):
         if overrideStatus is not None:
             if isinstance(overrideStatus, Status.FailStatus):
                 self._status = overrideStatus
@@ -1432,7 +1383,7 @@ class Thread(object):
 
         self._state = Status.FailStatus
 
-    def _setSuccess(self, overrideStatus=None):
+    def setSuccess(self, overrideStatus=None):
         if overrideStatus is not None:
             if isinstance(overrideStatus, Status.SuccessStatus):
                 self._status = overrideStatus
@@ -1442,7 +1393,7 @@ class Thread(object):
             self._status = self._successStatus
 
         self._state = Status.SuccessStatus
-    
+
 
 class Event(object):
 

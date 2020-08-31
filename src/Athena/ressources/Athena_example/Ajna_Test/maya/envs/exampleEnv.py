@@ -7,19 +7,19 @@ header = \
 	ID.NoTris,
 	ID.TestCheck,
 	ID.NoStaticAnimKeys,
+	ID.Test,
 )
 
 register = \
 {
-
 	ID.NoConstructionHistory:
 		{
 			'process': 'Athena.ressources.Athena_example.Ajna_Test.maya.processes.noConstructionHistory.NoConstructionHistory', 
 			'category': 'Scene Sanity',
 			'tags': Tag.NON_BLOCKING | Tag.NO_BATCH,
-			# 'level':
+			# 'statusOverrides':
 			# 	{
-			# 		'NODES_WITH_HISTORY': {Status.TYPE_FAIL: Status.CRITICAL},
+			# 		'NODES_WITH_HISTORY': {Status.FailStatus: Status.CRITICAL},
 			# 	}
 		},
 
@@ -34,6 +34,12 @@ register = \
 		},
 
 	ID.NoTris:
+		{
+			'process': 'Athena.ressources.Athena_example.Ajna_Test.maya.processes.noTris.NoTris',
+			'category': 'Model Sanity',
+		},
+
+	ID.Test:
 		{
 			'process': 'Athena.ressources.Athena_example.Ajna_Test.maya.processes.noTris.NoTris',
 			'category': 'Model Sanity',

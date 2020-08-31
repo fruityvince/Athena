@@ -8,6 +8,8 @@ __all__ = ('NoNGons',)
 
 @AtCore.automatic
 class NoConstructionHistory(AtCore.Process):
+    '''
+    '''
 
     NODES_WITH_HISTORY = AtCore.Thread(title='These nodes have construction history', failStatus=AtCore.Status.ERROR)
 
@@ -25,14 +27,14 @@ class NoConstructionHistory(AtCore.Process):
                 self.toFix.append(each)
 
         if self.toFix:
-            self.setFail(self.NODES_WITH_HISTORY)
+            self.NODES_WITH_HISTORY.setFail()
             self.setFeedback(
                     thread=self.NODES_WITH_HISTORY,
                     toDisplay=[cmds.ls(node, shortNames=True)[0] for node in self.toFix],
                     toSelect=self.toFix
                 )
-        else:
-            self.setSuccess(self.NODES_WITH_HISTORY)
+        # else:
+        #     self.setSuccess(self.NODES_WITH_HISTORY)
 
     def fix(self):
 
@@ -41,3 +43,8 @@ class NoConstructionHistory(AtCore.Process):
 
         for each in self.toFix:
             cmds.delete(each, constructionHistory=True)
+
+        self.NODES_WITH_HISTORY.setSuccess()
+
+# from Athena import AtTests
+# AtTests.test(NoConstructionHistory)

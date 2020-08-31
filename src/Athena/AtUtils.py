@@ -88,10 +88,10 @@ def getPackages(verbose=False):
 
     rules = []
     # Append the rules list with all rules used to get package that end with {PROGRAM_NAME}_?_???
-    rules.append('.*?')  # Non-greedy match on filler
-    rules.append('({}_(?:[A-Za-z0-9_]+))'.format(AtConstants.PROGRAM_NAME))  # Match {PROGRAM_NAME}_? pattern.
-    rules.append('.*?')  # Non-greedy match on filler
-    rules.append('([A-Za-z0-9_]+)')    # Word that match alpha and/or numerics, allowing '_' character.
+    rules.append(r'.*?')  # Non-greedy match on filler
+    rules.append(r'({}_(?:[A-Za-z0-9_]+))'.format(AtConstants.PROGRAM_NAME))  # Match {PROGRAM_NAME}_? pattern.
+    rules.append(r'.*?')  # Non-greedy match on filler
+    rules.append(r'([A-Za-z0-9_]+)')  # Word that match alpha and/or numerics, allowing '_' character.
 
     regex = re.compile(''.join(rules), re.IGNORECASE|re.DOTALL)
 
@@ -127,6 +127,17 @@ def getPackages(verbose=False):
     return packages
 
 
+def importProcessPath(processStrPath):
+
+    moduleStrPath, _, processName = processStrPath.rpartition('.')
+    module = importFromStr(moduleStrPath)
+
+    if not hasattr(module, processName):
+        raise ImportError('Module {0} have no class named {1}'.format(module.__name__, processName))
+    
+    return module, getattr(module, processName)
+
+
 def getSoftware(default='standalone'):
     """Get the current software from which the tool is executed.
 
@@ -160,27 +171,27 @@ def getSoftware(default='standalone'):
         import psutil
         process = psutil.Process(os.getpid())
         if process:
-            software = formatSoftware(softwarePath=process.name())
+            software = _formatSoftware(softwarePath=process.name())
             if software:
                 return software
                 
     # Fallback on sys.argv[0] or sys.executable (This depends on the current interpreter)
     pythonInterpreter = sys.argv[0] or sys.executable
     if pythonInterpreter:
-        software = formatSoftware(softwarePath=pythonInterpreter)
+        software = _formatSoftware(softwarePath=pythonInterpreter)
         if software:
             return software
     
     # Fallback on PYTHONHOME or _ environment variable
     pythonHome = os.environ.get('PYTHONHOME', os.environ.get('_', ''))
     if pythonHome:
-        software = formatSoftware(softwarePath=pythonHome)
+        software = _formatSoftware(softwarePath=pythonHome)
         if software:
             return software
 
     return default
 
-def formatSoftware(softwarePath):
+def _formatSoftware(softwarePath):
     """Check if there is an available software str in the hiven Path
 
     parameters

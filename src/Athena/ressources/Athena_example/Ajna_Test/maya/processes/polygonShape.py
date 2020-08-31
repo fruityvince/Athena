@@ -70,12 +70,12 @@ class PolygonShape(AtCore.Process):
                          toDisplay=[cmds.ls(face, shortNames=True)[0] for face in self.toFix],
                          toSelect=self.toFix)
         
-        self.setAllSuccess()
+        # self.setAllSuccess()
         if self.toFix:
             if mode == 'tris':
-                self.setFail(self.TRIS)
+                self.TRIS.setFail()
             if mode == 'nGons':
-                self.setFail(self.NGONS)
+                self.NGONS.setFail()
 
 
         return self.toFix

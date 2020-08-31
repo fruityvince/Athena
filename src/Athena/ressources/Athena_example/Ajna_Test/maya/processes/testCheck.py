@@ -35,7 +35,7 @@ class TestCheck(AtCore.Process):
     NODES_AT_ORIGIN = AtCore.Thread(title='These nodes are in the center of the world')
 
     TEST_PERFORMANCES = AtCore.Thread(
-        title='This trhead will generate a lot of error to test performances',
+        title='This thread will generate a lot of error to test performances',
         failStatus=AtCore.Status.WARNING
     )
 
@@ -48,7 +48,7 @@ class TestCheck(AtCore.Process):
 
         self.toFix = ([], [])
 
-        self.setSuccess(self.NODES_AT_ORIGIN)
+        self.NODES_AT_ORIGIN.setSuccess()
         baseProgressValue = 100. / (len(self.toCheck) or 1)
         for i, shape in enumerate(self.toCheck):
             self.setProgressValue(baseProgressValue * i, text='Checking: {0}'.format(shape))
@@ -59,7 +59,7 @@ class TestCheck(AtCore.Process):
                 self.toFix[0].append(node)
 
             if all(axe == 0.0 for axe in cmds.getAttr('{}.translate'.format(node))[0]):
-                self.setFail(self.NODES_AT_ORIGIN)
+                self.NODES_AT_ORIGIN.setFail()
                 self.addFeedback(
                     thread=self.NODES_AT_ORIGIN,
                     toDisplay=node,
@@ -67,36 +67,36 @@ class TestCheck(AtCore.Process):
             )
 
         if self.toFix[0]:
-            self.setFail(self.NODES_UNDER_WORLD)
+            self.NODES_UNDER_WORLD.setFail()
             self.setFeedback(
                     thread=self.NODES_UNDER_WORLD,
                     toDisplay=self.toFix[0],
                     toSelect=self.toFix[0],
                 )
-        else:
-            self.setSuccess(self.NODES_UNDER_WORLD)
-            self.setFeedback(
-                    thread=self.NODES_UNDER_WORLD,
-                    toDisplay=cmds.ls(),
-                    toSelect=cmds.ls(),
-                )
+        # else:
+        #     self.NODES_UNDER_WORLD.setSuccess()
+        #     self.setFeedback(
+        #             thread=self.NODES_UNDER_WORLD,
+        #             toDisplay=cmds.ls(),
+        #             toSelect=cmds.ls(),
+        #         )
 
         errors = range(0, 10000)
         if errors:
-            self.setFail(self.TEST_PERFORMANCES)
+            self.TEST_PERFORMANCES.setFail()
             self.setFeedback(
                     thread=self.TEST_PERFORMANCES,
                     toDisplay=errors,
                     toSelect=errors,
                 )
         else:
-            self.setSuccess(self.TEST_PERFORMANCES)
+            self.TEST_PERFORMANCES.setSuccess()
 
         # self.NODES_UNDER_WORLD.failStatus = CUSTOM_ERROR_LEVEL
 
     def fix(self):
 
-        feedback = self.feedback.get(self.NODES_UNDER_WORLD, None)
+        feedback = self.getFeedback(self.NODES_UNDER_WORLD)
         if feedback is not None:
             cmds.group(feedback._toSelect)
 

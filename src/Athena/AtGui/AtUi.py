@@ -58,7 +58,6 @@ class Athena(QtWidgets.QMainWindow):
         self.software = self.register.software
         self.defaultDisplayMode = displayMode if displayMode in AtConstants.AVAILABLE_DISPLAY_MODE else AtConstants.AVAILABLE_DISPLAY_MODE[0]
         self.dev = dev
-        self.blueprints = {}
 
         self.verbose = verbose
         self.configuration = {'context': context, 'env': env}
@@ -320,8 +319,7 @@ class Athena(QtWidgets.QMainWindow):
         """ Reload the current blueprints and set the data of the scroll area. """
 
         with BusyCursor():
-            self.blueprints = self.getBlueprints()  #TODO: Make this a property !
-            self.processes_ProcessesScrollArea.data = self.blueprints
+            self.processes_ProcessesScrollArea.data = self.getBlueprints()
 
             # Restore the current filter to hidde checks that does not match the search.
             self.searchAndProgressBar.searchBar.textChanged.emit(self.searchAndProgressBar.searchBar.text())
@@ -637,7 +635,7 @@ class ProcessWidget(QtWidgets.QWidget):
 
     CLOSED_HEIGHT = 25
 
-    def __init__(self, blueprint, parent):
+    def __init__(self, blueprint, parent=None):
         """ Initialise the Process widget from a blueprint.
 
         parameters:
@@ -653,7 +651,7 @@ class ProcessWidget(QtWidgets.QWidget):
         self.resourcesManager = AtUtils.RessourcesManager(__file__, backPath='..{0}ressources'.format(os.sep), key=AtConstants.PROGRAM_NAME)
         
         self.blueprint = blueprint
-        self.options = blueprint._options
+        self.parameters = blueprint._parameters
         self.name = blueprint._name
         self.docstring = blueprint._docstring
         self.isEnabled = blueprint._isEnabled
@@ -987,14 +985,13 @@ class ProcessWidget(QtWidgets.QWidget):
 
         with self.ExecContext(self), BusyCursor():
             try:
-                result, state = self.blueprint.check()
-                    #TODO: Why this ?
+                result, status = self.blueprint.check()
 
-                self.status = state
-                if state:
+                self.status = status
+                if isinstance(status, AtCore.Status.FailStatus):
                     self.setFeedback(result)
                     self.fix_QPushButton.setVisible(self.isFixable)
-                else:
+                elif isinstance(status, AtCore.Status.SuccessStatus):
                     self.setFeedback(None)
                     self.fix_QPushButton.setVisible(False)
 
@@ -1013,7 +1010,15 @@ class ProcessWidget(QtWidgets.QWidget):
 
         with self.ExecContext(self), BusyCursor():
             try:
-                result = self.blueprint.fix()
+                result, status = self.blueprint.fix()
+
+                self.status = status
+                if isinstance(status, AtCore.Status.FailStatus):
+                    self.setFeedback(result)
+                    self.fix_QPushButton.setVisible(self.isFixable)
+                elif isinstance(status, AtCore.Status.SuccessStatus):
+                    self.setFeedback(None)
+                    self.fix_QPushButton.setVisible(False)
 
             except Exception as exception:
                 self.status = AtCore.Status._EXCEPTION  # The process encounter an exception during it's execution.
@@ -1022,8 +1027,8 @@ class ProcessWidget(QtWidgets.QWidget):
                 return
 
         # After a fix, re-launch a check to ensure everything is clean.
+        # self.register.getData('parameters').get('recheck', False)
         self.execCheck()
-
 
     def execTool(self):
         """ Run the `tool` method of the Blueprint's Process.
@@ -1035,7 +1040,7 @@ class ProcessWidget(QtWidgets.QWidget):
         with self.ExecContext(self), BusyCursor():
             try:
                 result = self.blueprint.tool()
-                if result is not None and hasattr(result, 'show'):
+                if result is not None and isinstance(result, QtWidgets.QWidget):
                     result.setParent(self, QtCore.Qt.Window)
                     result.show()
 
@@ -1599,9 +1604,6 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
                 process.execFix()
 
         self.progressValueReseted.emit()
-
-        if self.register.getData('parameters').get('recheck', False):
-            self.runAllCheck()
 
     def buildWidgets(self):
         """" Create the new widget and setup them.

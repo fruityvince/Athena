@@ -10,7 +10,7 @@
 import sys
 
 from Athena.AtGui import AtUi
-from Athena import AtCore, AtUtils, AtConstants
+from Athena import AtCore, AtUtils, AtConstants, AtTests
 
 __version__ = AtConstants.VERSION
 
@@ -75,17 +75,6 @@ def batch(context, env, dev=False, verbose=False):
         return False
     return True
 
-def safeReload():
-
-    # reloading the core cause issue since the base class is reloaded but not the classes that inherits it 
-    # (All user defined blueprints) see more: http://stackoverflow.com/questions/9722343
-    _legacyProcess = AtCore.Process
-    reload(AtCore)
-    AtCore.Process = _legacyProcess
-    
-    reload(AtUtils)
-    reload(AtUi)
-    reload(AtConstants)
 
 def _reload(main='__main__', verbose=False):
     """This hidden method is meant to reload all Athena related packages, especially to work on the tool core.
@@ -157,6 +146,8 @@ def _reload(main='__main__', verbose=False):
 
     # ---------- Restore the reloaded Athena main module in the __main__ module ---------- #
     if __name__ != '__main__':
+        # for moduleName in toReimport:
+        #     setattr(sys.modules[main], moduleName, sys.modules[moduleName])  #FIXME: We can't update all name in local.
         setattr(sys.modules[main], __name__, sys.modules[__name__])
 
     # ---------- Display reload time, even if there is no verbose ---------- #
