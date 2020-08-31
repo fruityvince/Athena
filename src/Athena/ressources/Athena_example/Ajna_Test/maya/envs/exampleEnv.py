@@ -39,7 +39,7 @@ register = \
 			'category': 'Model Sanity',
 		},
 
-	ID.Test:
+	ID.Test:  # Second NoTris check to test if the wrapp of the class attribute is an issue. It should not.
 		{
 			'process': 'Athena.ressources.Athena_example.Ajna_Test.maya.processes.noTris.NoTris',
 			'category': 'Model Sanity',
