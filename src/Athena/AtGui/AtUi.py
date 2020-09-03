@@ -4,17 +4,35 @@ from functools import partial
 
 import os
 import re
-import sys
 import random
 import string
+import sys
 import traceback
 import webbrowser
 
-# Use PySide2 or PyQt5.
-# try: from PySide2 import QtCore, QtGui, QtWidgets
-# except: from PyQt5 import QtCore, QtGui, QtWidgets
-# finally: __QTBINDING__ = QtCore.__name__.partition('.')[0]
 from Qt import QtCore, QtGui, QtWidgets
+
+
+class SettingsManager(object):
+
+    __SETTINGS = QtCore.QSettings(AtConstants.PROGRAM_NAME, QtCore.QSettings.IniFormat)
+
+    __GETTER_METHODS = {}
+
+    @classmethod
+    def getSettings(cls):
+        return cls.__SETTINGS
+
+    @classmethod
+    def loadSetting(cls, setting, default=None, getter=None):
+        if getter is not None:
+            cls.__GETTER_METHODS[setting] = getter
+        return cls.__SETTINGS.value(setting, defaultValue=default)
+
+    @classmethod
+    def saveSettings(cls):
+        for setting, getter in cls.__GETTER_METHODS.items():
+            cls.__SETTINGS.setValue(setting, getter())
 
 class Athena(QtWidgets.QMainWindow):
     """Main ui for Athena, it offer all possible features available from The API and is Available on multiple softwares.
@@ -73,11 +91,15 @@ class Athena(QtWidgets.QMainWindow):
 
         self.setup_context()
 
-        self.resize(400, 800)
+        self.resize(
+            SettingsManager.loadSetting('width', default=400, getter=self.width), 
+            SettingsManager.loadSetting('height', default=800, getter=self.height)
+        )
         self.setWindowTitle('{0} - {1}'.format(AtConstants.PROGRAM_NAME, self.software.capitalize()))
         self.setWindowIcon(self.resourcesManager.get('logo.png', AtConstants.PROGRAM_NAME, QtGui.QIcon))  #TODO: Find a logo and add it here.
 
-        self.setProperty("saveWindowPref", True)  # This will prevent the window to leave foreground on OSX
+        # This will prevent the window to leave foreground on OSX
+        self.setProperty("saveWindowPref", True)
 
     def buildUi(self):
         """ Create all widgets and layout for the ui """
@@ -289,6 +311,7 @@ class Athena(QtWidgets.QMainWindow):
         """
 
         if self.canClose:
+            SettingsManager.saveSettings()
             self.deleteLater()
             return super(Athena, self).closeEvent(event)
 
@@ -1526,6 +1549,9 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         """
         
         self._data = value
+
+        if not value:
+            return
 
         self.buildWidgets()
         self.clear(self.layout, safe=not self.dev)  # In dev mode, we always delete the widget to simplify the test.

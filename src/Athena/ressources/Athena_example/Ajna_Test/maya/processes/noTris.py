@@ -16,5 +16,4 @@ class NoTris(polygonShape.PolygonShape):
         pass
 
     def check(self, mode='tris'):
-    	print self.TRIS, id(self.TRIS)
         super(NoTris, self).check(mode=mode)

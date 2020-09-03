@@ -2,6 +2,7 @@ import re
 import numbers
 import six
 import inspect
+import enum
 
 import cProfile
 import pstats
@@ -441,8 +442,6 @@ class Register(object):
         dict
             Dict containing all blueprint objects for the given context env.
         """
-
-        assert context in self._contexts, '"{0}" Are not registered yet in this Register'.format(context)
 
         self._blueprints = []
         self._context = context
@@ -1131,7 +1130,7 @@ class Tag(object):
     DEPENDANT       = NO_CHECK | NO_FIX | NO_TOOL
 
 
-class Link(object):
+class Link(enum.Enum):
     """Give access to the AtConstants to simplify the use of the links."""
 
     CHECK = AtConstants.CHECK
@@ -1142,13 +1141,13 @@ class Link(object):
 class MetaID(type):
         
     def __getattr__(cls, value):
-        id_ = hex(hash(value))
+        # id_ = hex(hash(value))
 
-        if id_ not in cls._DATA:
-            setattr(cls, value, id_)
-            cls._DATA[value] = id_
+        if value not in cls._DATA:
+            setattr(cls, value, value)
+            cls._DATA.add(value)
 
-        return id_
+        return value
 
     def __getattribute__(cls, value):
         
@@ -1160,16 +1159,13 @@ class MetaID(type):
 #TODO: six is used to ensure compatibility between python 2.x and 3.x, replace by `object, metaclass=MetaID`
 class ID(six.with_metaclass(MetaID, object)):
     
-    _DATA = {}
+    _DATA = set()
 
     def __new__(cls):
         raise NotImplementedError('{0} is not meant to be instanciated.'.format(cls))
 
     @classmethod
     def flush(cls):
-        for key in cls._DATA:
-            delattr(cls, key)
-        
         cls._DATA.clear()
 
 

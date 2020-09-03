@@ -261,6 +261,10 @@ def reloadModule(module):
     return importFromStr(moduleName)
 
 
+def importPathStrExist(moduleStr):
+    return bool(pkgutil.find_loader(moduleStr))
+
+
 # could be only with instance of class. (get inheritance and return dict with each one as key and list of overriden as value)
 def getOverriddedMethods(instance, cls):
     """Detect all methods that have been overridden from a subclass of a class

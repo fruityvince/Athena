@@ -15,5 +15,4 @@ class NoNGons(polygonShape.PolygonShape):
         pass
 
     def check(self, mode='nGons'):
-    	print self.TRIS, id(self.TRIS)
         super(NoNGons, self).check(mode=mode)
