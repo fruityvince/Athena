@@ -73,9 +73,9 @@ class TestEnv(unittest.TestCase):
         if hasattr(self.ENV, 'register'):
             self.register = getattr(self.ENV, 'register')
 
-        self.parameters = type(AtConstants.PARAMETERS_TEMPLATE)()
-        if hasattr(self.ENV, 'parameters'):
-            self.parameters = getattr(self.ENV, 'parameters')
+        self.settings = type(AtConstants.SETTINGS_TEMPLATE)()
+        if hasattr(self.ENV, 'settings'):
+            self.settings = getattr(self.ENV, 'settings')
 
     def __iterProcessKey(self, processKey):
         for key, value in self.register.items():

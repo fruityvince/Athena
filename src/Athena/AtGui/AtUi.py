@@ -27,10 +27,10 @@ class SettingsManager(object):
         return cls.__SETTINGS
 
     @classmethod
-    def loadSetting(cls, setting, default=None, getter=None):
+    def loadSetting(cls, setting, default=None, type=str, getter=None):
         if getter is not None and callable(getter):
             cls.__GETTER_METHODS[setting] = getter
-        return cls.__SETTINGS.value(setting, defaultValue=default)
+        return type(cls.__SETTINGS.value(setting, defaultValue=default))
 
     @classmethod
     def saveSettings(cls):
@@ -94,8 +94,8 @@ class Athena(QtWidgets.QMainWindow):
         self._setupContext()
 
         self.resize(
-            SettingsManager.loadSetting('width', default=400, getter=self.width), 
-            SettingsManager.loadSetting('height', default=800, getter=self.height)
+            SettingsManager.loadSetting('width', default=400, type=int, getter=self.width), 
+            SettingsManager.loadSetting('height', default=800, type=int, getter=self.height)
         )
         self.setWindowTitle('{0} - {1}'.format(AtConstants.PROGRAM_NAME, self._register.software.capitalize()))
         self.setWindowIcon(self._resourcesManager.get('logo.png', AtConstants.PROGRAM_NAME, QtGui.QIcon))  #TODO: Find a logo and add it here.
@@ -344,7 +344,7 @@ class Athena(QtWidgets.QMainWindow):
         """ Reload the current blueprints and set the data of the scroll area. """
 
         with BusyCursor():
-            self._processes_ProcessesScrollArea.data = self.getBlueprints()
+            self._processes_ProcessesScrollArea.setBlueprints(self.getBlueprints())
 
             # Restore the current filter to hidde checks that does not match the search.
             self._searchAndProgressBar.searchBar.textChanged.emit(self._searchAndProgressBar.searchBar.text())
@@ -646,7 +646,7 @@ class ProcessWidget(QtWidgets.QWidget):
         self._resourcesManager = AtUtils.RessourcesManager(__file__, backPath='..{0}ressources'.format(os.sep), key=AtConstants.PROGRAM_NAME)
         
         self._blueprint = blueprint
-        self._parameters = blueprint._parameters
+        self._settings = blueprint._settings
         self._name = blueprint._name
         self._docstring = blueprint._docstring
         self._isEnabled = blueprint._isEnabled
@@ -656,7 +656,7 @@ class ProcessWidget(QtWidgets.QWidget):
         self._isNonBlocking = blueprint._isNonBlocking
 
         self._status = AtCore.Status._DEFAULT
-        self.isOpened = False
+        self._isOpened = False
         self.__frameQColor = QtGui.QColor(*self._status._color)  # This QColor object will be updated (no new instance everytime color will change)
 
         self._feedback = None
@@ -669,123 +669,123 @@ class ProcessWidget(QtWidgets.QWidget):
         """ Create each widget that are part of the ProcessWidget """
 
         # -- Enable CheckBox
-        self.enable_QCheckBox = QtWidgets.QRadioButton(self)
+        self._enable_QCheckBox = QtWidgets.QRadioButton(self)
 
         # -- Process Name Display PushButton
         self._name_QLabel = QtWidgets.QPushButton(self._resourcesManager.get('right-arrow.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), self._name, self)
 
         # -- Tool PushButton
-        self.tool_QPushButton =  QtWidgets.QPushButton(self._resourcesManager.get('tool.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
+        self._tool_QPushButton =  QtWidgets.QPushButton(self._resourcesManager.get('tool.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
 
         # -- Fix PushButton
-        self.fix_QPushButton = QtWidgets.QPushButton(self._resourcesManager.get('fix.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
+        self._fix_QPushButton = QtWidgets.QPushButton(self._resourcesManager.get('fix.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
 
         # -- Check PushButton
-        self.check_QPushButton = QtWidgets.QPushButton(self._resourcesManager.get('check.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
+        self._check_QPushButton = QtWidgets.QPushButton(self._resourcesManager.get('check.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
 
         # -- Help PushButton
-        self.help_QPushButton =  QtWidgets.QPushButton(self._resourcesManager.get('help.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
+        self._help_QPushButton =  QtWidgets.QPushButton(self._resourcesManager.get('help.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
 
         # -- Profiler PushButton
         if _DEV:
-            self.profiler_QPushButton =  QtWidgets.QPushButton(self._resourcesManager.get('profiler.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
+            self._profiler_QPushButton =  QtWidgets.QPushButton(self._resourcesManager.get('profiler.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
 
         # -- Stack Layout -> Stack Widget
-        self.header_QStackedLayout = QtWidgets.QStackedLayout(self)
+        self._header_QStackedLayout = QtWidgets.QStackedLayout(self)
 
-        self.header_QWidget = QtWidgets.QWidget(self)
-        self.header_QWidget.setLayout(self.header_QStackedLayout)
+        self._header_QWidget = QtWidgets.QWidget(self)
+        self._header_QWidget.setLayout(self._header_QStackedLayout)
 
         # -- Container Layout
         container_QWidget = QtWidgets.QWidget(self)
         container_QHBoxLayout = QtWidgets.QHBoxLayout(container_QWidget)
 
-        container_QHBoxLayout.addWidget(self.enable_QCheckBox)
+        container_QHBoxLayout.addWidget(self._enable_QCheckBox)
         container_QHBoxLayout.addWidget(self._name_QLabel)
 
         container_QHBoxLayout.addStretch()
 
-        container_QHBoxLayout.addWidget(self.tool_QPushButton)
-        container_QHBoxLayout.addWidget(self.fix_QPushButton)
-        container_QHBoxLayout.addWidget(self.check_QPushButton)
-        container_QHBoxLayout.addWidget(self.help_QPushButton)
+        container_QHBoxLayout.addWidget(self._tool_QPushButton)
+        container_QHBoxLayout.addWidget(self._fix_QPushButton)
+        container_QHBoxLayout.addWidget(self._check_QPushButton)
+        container_QHBoxLayout.addWidget(self._help_QPushButton)
         if _DEV:
-            container_QHBoxLayout.addWidget(self.profiler_QPushButton)
+            container_QHBoxLayout.addWidget(self._profiler_QPushButton)
 
-        self.header_QStackedLayout.addWidget(container_QWidget)
+        self._header_QStackedLayout.addWidget(container_QWidget)
 
-        self.container_QHBoxLayout = container_QHBoxLayout
+        self._container_QHBoxLayout = container_QHBoxLayout
         
         # -- Progressbar
-        self.progressbar_QProgressBar = QtWidgets.QProgressBar()
-        self.header_QStackedLayout.addWidget(self.progressbar_QProgressBar)
+        self._progressbar_QProgressBar = QtWidgets.QProgressBar()
+        self._header_QStackedLayout.addWidget(self._progressbar_QProgressBar)
 
         # -- Process Display Widget
-        self.processDisplay = ProcessDisplayWidget(self)
+        self._processDisplay = ProcessDisplayWidget(self)
 
         # -- Main Layout
         main_QVBoxLayout = QtWidgets.QVBoxLayout(self)
 
-        main_QVBoxLayout.addWidget(self.header_QWidget)
-        main_QVBoxLayout.addWidget(self.processDisplay)
+        main_QVBoxLayout.addWidget(self._header_QWidget)
+        main_QVBoxLayout.addWidget(self._processDisplay)
 
-        self.main_QVBoxLayout = main_QVBoxLayout
+        self._main_QVBoxLayout = main_QVBoxLayout
 
     def _setupUi(self):
         """ Setup each widget that constitue the ProcessWidget. """
 
         # -- Enable CheckBox
-        self.enable_QCheckBox.setChecked(self._isEnabled)
+        self._enable_QCheckBox.setChecked(self._isEnabled)
 
         # -- Process Name Display PushButton
         # self._name_QLabel.setButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
         self._name_QLabel.setIconSize(QtCore.QSize(15, 15))
 
         # -- Tool PushButton
-        self.tool_QPushButton.setObjectName(AtConstants.TOOL)
-        self.tool_QPushButton.setToolTip('Launch "{0}" tool'.format(self._name))
-        self.tool_QPushButton.setVisible(self._hasTool)
+        self._tool_QPushButton.setObjectName(AtConstants.TOOL)
+        self._tool_QPushButton.setToolTip('Launch "{0}" tool'.format(self._name))
+        self._tool_QPushButton.setVisible(self._hasTool)
 
         # -- Fix PushButton
-        self.fix_QPushButton.setObjectName(AtConstants.FIX)
-        self.fix_QPushButton.setToolTip('Run "{0}" fix'.format(self._name))
-        self.fix_QPushButton.setVisible(False)
+        self._fix_QPushButton.setObjectName(AtConstants.FIX)
+        self._fix_QPushButton.setToolTip('Run "{0}" fix'.format(self._name))
+        self._fix_QPushButton.setVisible(False)
 
         # -- Check PushButton
-        self.check_QPushButton.setObjectName(AtConstants.CHECK)
-        self.check_QPushButton.setToolTip('Run "{0}" check'.format(self._name))
-        self.check_QPushButton.setVisible(self._isCheckable)
+        self._check_QPushButton.setObjectName(AtConstants.CHECK)
+        self._check_QPushButton.setToolTip('Run "{0}" check'.format(self._name))
+        self._check_QPushButton.setVisible(self._isCheckable)
 
         # -- Help PushButton
-        self.help_QPushButton.setObjectName('help')
-        self.help_QPushButton.setToolTip(self._docstring)
-        self.help_QPushButton.enterEvent = self.showTooltip
+        self._help_QPushButton.setObjectName('help')
+        self._help_QPushButton.setToolTip(self._docstring)
+        self._help_QPushButton.enterEvent = self.showTooltip
 
         # -- Profiler PushButton
         if _DEV:
-            self.profiler_QPushButton.setObjectName('profiler')
-            self.profiler_QPushButton.setToolTip('Profile process'.format(self._name))
-            self.profiler_QPushButton.setVisible(True)
+            self._profiler_QPushButton.setObjectName('profiler')
+            self._profiler_QPushButton.setToolTip('Profile process'.format(self._name))
+            self._profiler_QPushButton.setVisible(True)
 
         # -- Container Layout
-        self.container_QHBoxLayout.setContentsMargins(5, 0, 0, 0)
-        self.container_QHBoxLayout.setSpacing(5)
+        self._container_QHBoxLayout.setContentsMargins(5, 0, 0, 0)
+        self._container_QHBoxLayout.setSpacing(5)
 
         # -- Progressbar
-        self.progressbar_QProgressBar.setAlignment(QtCore.Qt.AlignLeft)
-        self.progressbar_QProgressBar.setFormat(AtConstants.PROGRESSBAR_FORMAT.format(self._name))
+        self._progressbar_QProgressBar.setAlignment(QtCore.Qt.AlignLeft)
+        self._progressbar_QProgressBar.setFormat(AtConstants.PROGRESSBAR_FORMAT.format(self._name))
 
         # -- Stack Layout -> Stack Widget
-        self.header_QWidget.setFixedHeight(25)
-        self.header_QWidget.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
+        self._header_QWidget.setFixedHeight(25)
+        self._header_QWidget.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
 
         # -- Process Display Widget
-        self.processDisplay.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
-        self.processDisplay.setVisible(False)
+        self._processDisplay.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+        self._processDisplay.setVisible(False)
 
         # -- Main Layout
-        self.main_QVBoxLayout.setContentsMargins(0, 0, 0, 0)
-        self.main_QVBoxLayout.setSpacing(0)
+        self._main_QVBoxLayout.setContentsMargins(0, 0, 0, 0)
+        self._main_QVBoxLayout.setSpacing(0)
 
         # palette = self.palette()
         # palette.setColor(palette.Background, Status.DEFAULT.color)
@@ -802,24 +802,24 @@ class ProcessWidget(QtWidgets.QWidget):
         self._name_QLabel.clicked.connect(self.toggleTraceback)
 
         # -- Tool PushButton
-        self.tool_QPushButton.clicked.connect(self.execTool)
+        self._tool_QPushButton.clicked.connect(self.execTool)
 
         # -- Fix PushButton
-        self.fix_QPushButton.clicked.connect(self.execFix)
+        self._fix_QPushButton.clicked.connect(self.execFix)
 
         # -- Check PushButton
-        self.check_QPushButton.clicked.connect(self.execCheck)
+        self._check_QPushButton.clicked.connect(self.execCheck)
 
         # -- Profiler PushButton
         if _DEV:
-            self.profiler_QPushButton.clicked.connect(self._openTraceback)
-            self.profiler_QPushButton.clicked.connect(partial(self.processDisplay.logProfiler, ''))
+            self._profiler_QPushButton.clicked.connect(self._openTraceback)
+            self._profiler_QPushButton.clicked.connect(partial(self._processDisplay.logProfiler, ''))
 
         # -- Connect the progressbar to the process _progressbar attribute.
-        self._blueprint.setProgressbar(self.progressbar_QProgressBar)
+        self._blueprint.setProgressbar(self._progressbar_QProgressBar)
 
         # -- Log Widget
-        self.processDisplay.sizeChanged.connect(self._updateHeight)
+        self._processDisplay.sizeChanged.connect(self._updateHeight)
 
     def enterEvent(self, event):
         """ Event handled by Qt to manage mouse enter event and lighter the widget color.
@@ -899,7 +899,6 @@ class ProcessWidget(QtWidgets.QWidget):
 
     @status.setter
     def status(self, newStatus):
-
         self._status = newStatus
         self.__frameQColor.setRgb(*newStatus._color)
 
@@ -907,20 +906,20 @@ class ProcessWidget(QtWidgets.QWidget):
         self._feedback = feedback
 
         if not feedback:
-            self.processDisplay.setVisible(self.isOpened)
+            self._processDisplay.setVisible(self._isOpened)
             self.closeTraceback()
             return
 
         if isinstance(feedback, list) and isinstance(feedback[0], AtCore.Feedback):
-            self.processDisplay.logFeedback(feedback)
+            self._processDisplay.logFeedback(feedback)
         elif isinstance(feedback, Exception):
-            self.processDisplay.logTraceback(feedback)
+            self._processDisplay.logTraceback(feedback)
         self.openTraceback()
 
     def toggleTraceback(self):
         """Switch visibility of the traceback widget. """
 
-        if not self.isOpened:
+        if not self._isOpened:
             self.openTraceback()
         else:
             self.closeTraceback()
@@ -929,10 +928,10 @@ class ProcessWidget(QtWidgets.QWidget):
         """ Show the traceback widget and change the displayed arrow shape. """
 
         self._name_QLabel.setIcon(self._resourcesManager.get('bottom-arrow.png', AtConstants.PROGRAM_NAME, QtGui.QIcon))
-        self.isOpened = True
-        self._updateHeight(self.processDisplay.sizeHint())
+        self._isOpened = True
+        self._updateHeight(self._processDisplay.sizeHint())
 
-        self.processDisplay.setVisible(self.isOpened)
+        self._processDisplay.setVisible(self._isOpened)
 
     def openTraceback(self):
         """ Show the traceback widget and change the displayed arrow shape. """
@@ -945,10 +944,10 @@ class ProcessWidget(QtWidgets.QWidget):
         """ Hide the traceback widget and change the displayed arrow shape. """
 
         self._name_QLabel.setIcon(self._resourcesManager.get('right-arrow.png', AtConstants.PROGRAM_NAME, QtGui.QIcon))
-        self.isOpened = False
+        self._isOpened = False
         self.setFixedHeight(self._CLOSED_HEIGHT)
 
-        self.processDisplay.setVisible(self.isOpened)
+        self._processDisplay.setVisible(self._isOpened)
 
     def showTooltip(self, event):
         """ Show the tooltip on the cursor's position.
@@ -967,12 +966,12 @@ class ProcessWidget(QtWidgets.QWidget):
 
     def isChecked(self):
         """ Return Wheter the ProcessWidget is checked or not. """
-        return self.enable_QCheckBox.isChecked()
+        return self._enable_QCheckBox.isChecked()
 
     def setChecked(self, state):
         """ Check the ProcessWidget """
 
-        self.enable_QCheckBox.setChecked(state)
+        self._enable_QCheckBox.setChecked(state)
 
     def execCheck(self):
         """ Run the `check` method of the Blueprint's Process.
@@ -981,17 +980,17 @@ class ProcessWidget(QtWidgets.QWidget):
         Handle any Exception to switch the ProcessWidget state to 'Exception' and log the Exception's feedback in it.
         """
 
-        with self.ExecContext(self), BusyCursor():
+        with self.__ExecContext(self), BusyCursor():
             try:
                 result, status = self._blueprint.check()
 
                 self.status = status
                 if isinstance(status, AtCore.Status.FailStatus):
                     self.setFeedback(result)
-                    self.fix_QPushButton.setVisible(self._isFixable)
+                    self._fix_QPushButton.setVisible(self._isFixable)
                 elif isinstance(status, AtCore.Status.SuccessStatus):
                     self.setFeedback(None)
-                    self.fix_QPushButton.setVisible(False)
+                    self._fix_QPushButton.setVisible(False)
 
             except Exception as exception:
                 self.status = AtCore.Status._EXCEPTION  # The process encounter an exception during it's execution.
@@ -1006,17 +1005,17 @@ class ProcessWidget(QtWidgets.QWidget):
         Then, launch the `execCheck` method to catch any other error to update the ProcessWidget.
         """
 
-        with self.ExecContext(self), BusyCursor():
+        with self.__ExecContext(self), BusyCursor():
             try:
                 result, status = self._blueprint.fix()
 
                 self.status = status
                 if isinstance(status, AtCore.Status.FailStatus):
                     self.setFeedback(result)
-                    self.fix_QPushButton.setVisible(self._isFixable)
+                    self._fix_QPushButton.setVisible(self._isFixable)
                 elif isinstance(status, AtCore.Status.SuccessStatus):
                     self.setFeedback(None)
-                    self.fix_QPushButton.setVisible(False)
+                    self._fix_QPushButton.setVisible(False)
 
             except Exception as exception:
                 self.status = AtCore.Status._EXCEPTION  # The process encounter an exception during it's execution.
@@ -1035,7 +1034,7 @@ class ProcessWidget(QtWidgets.QWidget):
         Exception's feedback in it.
         """
 
-        with self.ExecContext(self), BusyCursor():
+        with self.__ExecContext(self), BusyCursor():
             try:
                 result = self._blueprint.tool()
                 if result is not None and isinstance(result, QtWidgets.QWidget):
@@ -1047,7 +1046,7 @@ class ProcessWidget(QtWidgets.QWidget):
                 self.setFeedback(exception)
                 traceback.print_exc(exception)
 
-    class ExecContext(object):
+    class __ExecContext(object):
 
         def __init__(self, instance):
             self.instance = instance
@@ -1055,12 +1054,12 @@ class ProcessWidget(QtWidgets.QWidget):
         def __enter__(self):
             self.instance.leaveEvent(None)
 
-            self.instance.header_QStackedLayout.setCurrentIndex(1)
-            self.instance.progressbar_QProgressBar.setValue(0)
+            self.instance._header_QStackedLayout.setCurrentIndex(1)
+            self.instance._progressbar_QProgressBar.setValue(0)
 
         def __exit__(self, exception_type, exception_value, traceback):
             
-            self.instance.header_QStackedLayout.setCurrentIndex(0)
+            self.instance._header_QStackedLayout.setCurrentIndex(0)
 
             if self.instance.underMouse():
                 self.instance.enterEvent(None)
@@ -1080,25 +1079,20 @@ class _AbstractLogTreeWidget(QtWidgets.QTreeWidget):
         super(_AbstractLogTreeWidget, self).__init__(parent)
 
     def sizeHint(self):
-        # print("TreeWidget.sizeHint()")
-        # print("  frameWidth = {0}".format(self.frameWidth()))
         sizeHint = super(_AbstractLogTreeWidget, self).sizeHint()
 
         height = 2 * self.frameWidth() # border around tree
         if not self.isHeaderHidden():
             header = self.header()
             headerSizeHint = header.sizeHint()
-            # print("  headerSizeHint = {0}".format(headerSizeHint))
             height += headerSizeHint.height()
         rows = 0
         it = QtWidgets.QTreeWidgetItemIterator(self)
         while it.value() is not None:
             rows += 1
             index = self.indexFromItem(it.value())
-            # print("  rowHeight = {0}".format(self.rowHeight(index)))
             height += self.rowHeight(index)
             it += 1
-        # print("  computed height for {0} rows = {1}".format(rows, height))
 
         # We always include the height of the horizontalScrollBar to be sure it will not hide a feedback.
         height += self.horizontalScrollBar().height()
@@ -1196,7 +1190,7 @@ class FeedbackWidget(_AbstractLogTreeWidget):
 
         self.resizeColumnToContents(0)
 
-    def clearItemChildren(self, item):
+    def _clearItemChildren(self, item):
         for i in reversed(range(item.childCount())):
             child = item.takeChild(i)
             del child
@@ -1215,7 +1209,7 @@ class FeedbackWidget(_AbstractLogTreeWidget):
 
     def collapseFeedback(self, item):
         with BusyCursor():
-            self.clearItemChildren(item)
+            self._clearItemChildren(item)
             self.sizeChanged.emit(self.sizeHint())
 
     def expandAllFeedback(self):
@@ -1357,24 +1351,24 @@ class ProcessDisplayWidget(QtWidgets.QWidget):
     def _buildUi(self):
         self._mainLayout = ProcessDisplayStackedLayout(self)
 
-        self.feedbackWidget = FeedbackWidget(self)
-        self._mainLayout.addWidget(self.feedbackWidget)
+        self._feedbackWidget = FeedbackWidget(self)
+        self._mainLayout.addWidget(self._feedbackWidget)
         
-        self.tracebackWidget = None
-        self.profilerWidget = None
+        # Other widgets will be loaded lazily. Thet will be created if they need to be displayed.
+        self._tracebackWidget = None
+        self._profilerWidget = None
 
     def _setupUi(self):
         # Seems to not work on PySide 1
         # self.header().setSectionResizeMode(QtWidgets.QHeaderView.Interactive)
 
-        self.feedbackWidget.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+        self._feedbackWidget.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
 
     def _connectUi(self):
-        self.feedbackWidget.sizeChanged.connect(self._updateHeight)
+        self._feedbackWidget.sizeChanged.connect(self._updateHeight)
 
     def sizeHint(self):
         sizeHint = self._mainLayout.currentWidget().sizeHint()
-
         self._updateHeight(sizeHint)
         return sizeHint
 
@@ -1385,52 +1379,52 @@ class ProcessDisplayWidget(QtWidgets.QWidget):
 
     def _addTracebackWidget(self):
         # -- Build Traceback Widget
-        self.tracebackWidget = TracebackWidget(self)
-        self._mainLayout.addWidget(self.tracebackWidget)
+        self._tracebackWidget = TracebackWidget(self)
+        self._mainLayout.addWidget(self._tracebackWidget)
         
         # -- Setup Traceback Widget
-        self.tracebackWidget.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+        self._tracebackWidget.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
 
     def _addProfilerWidget(self):
         # -- Build Profiler Widget
-        self.profilerWidget = ProfilerWidget(self)
-        self._mainLayout.addWidget(self.profilerWidget)
+        self._profilerWidget = ProfilerWidget(self)
+        self._mainLayout.addWidget(self._profilerWidget)
 
         # -- Setup Profiler Widget
-        self.profilerWidget.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+        self._profilerWidget.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
 
     def displayFeedback(self):
-        self._mainLayout.setCurrentWidget(self.feedbackWidget)
+        self._mainLayout.setCurrentWidget(self._feedbackWidget)
 
         self.updateGeometry()
 
     def displayTracebak(self):        
         # This allow to not have tracebackWidget if not needed.
-        if self.tracebackWidget is None:
+        if self._tracebackWidget is None:
             self._addTracebackWidget()
-        self._mainLayout.setCurrentWidget(self.tracebackWidget)
+        self._mainLayout.setCurrentWidget(self._tracebackWidget)
 
         self.updateGeometry()
 
     def displayProfiler(self):
         # This allow to not have profilerWidget if not needed.
-        if self.profilerWidget is None:
+        if self._profilerWidget is None:
             self._addProfilerWidget()
-        self._mainLayout.setCurrentWidget(self.profilerWidget)
+        self._mainLayout.setCurrentWidget(self._profilerWidget)
 
         self.updateGeometry()
 
     def logFeedback(self, feedbacks):
         self.displayFeedback()
-        self.feedbackWidget.logFeedback(feedbacks)
+        self._feedbackWidget.logFeedback(feedbacks)
 
     def logTraceback(self, traceback):
         self.displayTracebak()
-        self.tracebackWidget.logTraceback(traceback)
+        self._tracebackWidget.logTraceback(traceback)
 
     def logProfiler(self, profiler):
         self.displayProfiler()
-        self.profilerWidget.logProfiler(profiler)
+        self._profilerWidget.logProfiler(profiler)
 
 
 class ProcessesScrollArea(QtWidgets.QScrollArea):
@@ -1449,13 +1443,13 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         super(ProcessesScrollArea, self).__init__()
 
         self._register = register
-        self.parent = parent
+        self._parent = parent
         self.displayMode = AtConstants.AVAILABLE_DISPLAY_MODE[0]
 
-        self._data = []
-        self.processes = {}
+        self._blueprints = []
+        self._processes = {}
 
-        self.stopRequested = False
+        self._stopRequested = False
 
         self._mainLayout = QtWidgets.QVBoxLayout(self)
 
@@ -1463,7 +1457,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         self._setupUi()
         self.setWidgetResizable(True)
 
-        # self.showNoProcess()
+        # self._showNoProcess()
         # self.viewport().update()
 
     def _buildUi(self):
@@ -1495,7 +1489,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
     def keyPressEvent(self, event):
 
         if event.key() == QtCore.Qt.Key_Escape:
-            self.stopRequested = True
+            self._stopRequested = True
             return event.accept()
 
         return super(ProcessesScrollArea, self).keyPressEvent(event)
@@ -1503,17 +1497,17 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
     def refreshDisplay(self): #TODO: Maybe remove this wrapper. By renaming the addWidget.
         """ Refresh the display of the widget by removing all Widgets and rebuild the new one. """
 
-        self.clear(self.layout, safe=True)
-        self.addWidgets()
-        self.showNoProcess()
+        self._clear(self.layout, safe=True)
+        self._addWidgets()
+        self._showNoProcess()
 
     @property
-    def data(self):
+    def getBlueprints(self):
         """ Getter that return value of `self._data`. """
-        return self._data
+        return self._blueprints
 
-    @data.setter
-    def data(self, value):
+    # Should not work like that !!!
+    def setBlueprints(self, blueprints):
         """ Setter for `self._data`.
 
         parameters:
@@ -1522,26 +1516,27 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
             Dict containing Blueprint object to use as source for ProcessWidgets.
         """
         
-        self._data = value
+        self._blueprints = blueprints
 
-        if not value:
+        #WATCHME: Is this really working ? 
+        if not blueprints:
             return
 
-        self.buildWidgets()
-        self.clear(self.layout, safe=not _DEV)  # In dev mode, we always delete the widget to simplify the test.
+        self._buildWidgets()
+        self._clear(self.layout, safe=not _DEV)  # In dev mode, we always delete the widget to simplify the test.
 
-        if value:
-            self.addWidgets()
+        if blueprints:
+            self._addWidgets()
         else:
-            self.showNoProcess()
+            self._showNoProcess()
 
-    def showNoProcess(self):
+    def _showNoProcess(self):
         """ Switch the widget display to show only a text. """
 
-        if self.processes:
+        if self._processes:
             return
 
-        self.clear(self.layout, safe=False)
+        self._clear(self.layout, safe=False)
 
         noProcesses_QLabel = QtWidgets.QLabel('No Process Available')
         noProcesses_QLabel.setAlignment(QtCore.Qt.AlignCenter)
@@ -1556,20 +1551,20 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         Also update the general progress bar to display execution progress.
         """
 
-        if not self.processes:
+        if not self._processes:
             return
 
-        self.stopRequested = False
+        self._stopRequested = False
         self.feedbackMessageRequested.emit('Check in progress... Press [ESCAPE] to interrupt.', 1)
 
-        progressbarLen = 100.0/len(self.processes)
-        for i, process in self.processes.items():
-            if self.stopRequested:
+        progressbarLen = 100.0/len(self._processes)
+        for i, process in self._processes.items():
+            if self._stopRequested:
                 break
 
             self.progressValueChanged.emit(progressbarLen*i)
 
-            if process._blueprint._isCheckable and process.isChecked() and (process.isVisible() or not self.parent.canClose):
+            if process._blueprint._isCheckable and process.isChecked() and (process.isVisible() or not self._parent.canClose):
                 self.ensureWidgetVisible(process)
                 process.execCheck()
 
@@ -1582,15 +1577,15 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         Also update the general progress bar to display execution progress.
         """
 
-        if not self.processes:
+        if not self._processes:
             return
 
-        self.stopRequested = False
+        self._stopRequested = False
         self.feedbackMessageRequested.emit('Fix in progress... Press [ESCAPE] to interrupt.', 1)
 
-        progressbarLen = 100.0/len(self.processes)
-        for i, process in self.processes.items():
-            if self.stopRequested:
+        progressbarLen = 100.0/len(self._processes)
+        for i, process in self._processes.items():
+            if self._stopRequested:
                 break
 
             self.progressValueChanged.emit(progressbarLen*i)
@@ -1599,24 +1594,24 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
             if process.status._type is not AtCore.Status.TYPE_FAIL or process.status is AtCore.Status._EXCEPTION:
                 continue
 
-            if process.isFixable and process.isChecked() and (process.isVisible() or not self.parent.canClose):
+            if process.isFixable and process.isChecked() and (process.isVisible() or not self._parent.canClose):
                 self.ensureWidgetVisible(process)
                 process.execFix()
 
         self.progressValueReseted.emit()
 
-    def buildWidgets(self):
+    def _buildWidgets(self):
         """" Create the new widget and setup them.
 
         Build the process widgets from blueprint list and setup them (resolve links with process methods.)
         """
         
-        self.processes = processes = self._register.getData('widget') or {}
+        self._processes = processes = self._register.getData('widget') or {}
         if processes and not _DEV:
             return  # There is already widgets in the register
 
         uiLinkResolveBlueprints = []
-        for index, blueprint in enumerate(self._data):
+        for index, blueprint in enumerate(self._blueprints):
             if not blueprint._inUi:
                 uiLinkResolveBlueprints.append(None)
                 continue  # Skip this check if it does not be run in ui
@@ -1625,39 +1620,39 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
 
         self._register.setData('widget', processes)
 
-        for blueprint in self._data:
+        for blueprint in self._blueprints:
             blueprint.resolveLinks(uiLinkResolveBlueprints, check='execCheck', fix='execFix', tool='execTool')
 
     # Could be property (get/set) named displayMode
-    def addWidgets(self):
+    def _addWidgets(self):
         """ Fallback on all display mode to launch the corresponding `addWidget` method. """
 
         mode = self.displayMode
 
         if mode == AtConstants.AVAILABLE_DISPLAY_MODE[0]:
-            self.addWidgetsByHeader()
+            self._addWidgetsByHeader()
         elif mode == AtConstants.AVAILABLE_DISPLAY_MODE[1]:
-            self.addWidgetsByCategory()
+            self._addWidgetsByCategory()
         elif mode == AtConstants.AVAILABLE_DISPLAY_MODE[2]:
-            self.addWidgetsAlphabetically()
+            self._addWidgetsAlphabetically()
 
-        for widget in self.processes.values():
+        for widget in self._processes.values():
             widget.leaveEvent(None)
 
-    def addWidgetsByHeader(self):
+    def _addWidgetsByHeader(self):
         """ Add widget in the scroll area by Blueprint order (default) """
 
-        for index in self.processes.keys():
-            self.layout.addWidget(self.processes[index])
+        for index in self._processes.keys():
+            self.layout.addWidget(self._processes[index])
 
         self.layout.addStretch()
 
-    def addWidgetsByCategory(self):
+    def _addWidgetsByCategory(self):
         """ Add widgets in the scroll area by Category Order (Also add Label for category) """
 
         categories = []
         orderedByCategory = {}
-        for index, process in self.processes.items():
+        for index, process in self._processes.items():
             category = process._blueprint.category
 
             if category not in categories:
@@ -1681,10 +1676,10 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
 
         self.layout.addStretch()
 
-    def addWidgetsAlphabetically(self):
+    def _addWidgetsAlphabetically(self):
         """ Add widget in the scroll area by Blueprint order (default) """
 
-        for process in sorted(self.processes.values(), key=lambda proc: proc.blueprint.name):
+        for process in sorted(self._processes.values(), key=lambda proc: proc._blueprint.name):
             self.layout.addWidget(process)
 
         self.layout.addStretch()
@@ -1692,19 +1687,19 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
     def checkAll(self):
         """ Check all Process Widget in the scroll area """
 
-        for process in self.processes.values():
+        for process in self._processes.values():
             process.setChecked(True)
 
     def uncheckAll(self):
         """ Uncheck all Process Widget in the scroll area """
 
-        for process in self.processes.values():
+        for process in self._processes.values():
             process.setChecked(False)
 
     def defaultAll(self):
         """ Reset all Process Widget check state in the scroll area """
 
-        for process in self.processes.values():
+        for process in self._processes.values():
             process.setChecked(process._blueprint.isEnabled)
 
     def filterProcesses(self, text):
@@ -1716,21 +1711,21 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
             Text used to filter processes in the area.
         """
 
-        for process in self.processes.values():
+        for process in self._processes.values():
             visibility = text.lower() in process._blueprint.name.lower()
             process.setVisible(visibility)
 
         if not text:
-            self.feedbackMessageRequested.emit('{} processes available'.format(len(self.processes)), 3000)
+            self.feedbackMessageRequested.emit('{} processes available'.format(len(self._processes)), 3000)
             return
 
-        visibleProcesses = [process for process in self.processes.values() if process.isVisible()]
+        visibleProcesses = [process for process in self._processes.values() if process.isVisible()]
         if not visibleProcesses:
             self.feedbackMessageRequested.emit('No process match name "{}"'.format(text), 3000)
         else:
             self.feedbackMessageRequested.emit('Found {} processes that match name "{}"'.format(len(visibleProcesses), text), 3000)
 
-    def clear(self, layout, safe=False):
+    def _clear(self, layout, safe=False):
         """ Clear all items in the layout
 
         Delete all widgets in the area to allow replacing them by another ones.
@@ -1762,7 +1757,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
                 del spacerToRemove
 
             else:
-                self.clear(layoutItem, safe=safe)
+                self._clear(layoutItem, safe=safe)
                 layoutItem.deleteLater()
                 del layoutItem
 
@@ -1803,16 +1798,17 @@ class BlockSignals():
             If True, all signals will be blocked, else, all signal will be activated.
         """
 
-        self.widgets = widgets
-        self.block = block
+        self._widgets = widgets
+        self._block = block
+
+        self._defaultStates = {}
 
     def __enter__(self):
-        self.defaultStates = {}
-        for widget in self.widgets:
-            self.defaultStates[widget] = widget.blockSignals(self.block)
+        for widget in self._widgets:
+            self._defaultStates[widget] = widget.blockSignals(self._block)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        for widget, state in self.defaultStates.items():
+        for widget, state in self._defaultStates.items():
             widget.blockSignals(state)
 
 

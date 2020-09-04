@@ -234,7 +234,7 @@ def importFromStr(moduleStr, verbose=False):
     str
         Return the loaded module or None if fail.
     """
-    # verbose=True
+
     module = None  #Maybe QC Error ?
     try:
         # module = __import__(moduleStr, fromlist=[''])

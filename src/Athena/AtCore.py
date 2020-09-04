@@ -182,6 +182,13 @@ class Process(object):
         self.__feedbacks[thread] = Feedback(thread, toDisplay, toSelect, selectMethod=selectMethod)
 
 
+    def addTrace(self, trace):
+        raise NotImplementedError
+
+    def breakpoint(self):
+        raise NotImplementedError
+
+
 # Automatic Decorator
 def automatic(cls):
     """ Utility decorator to automate a process behavior.
@@ -629,7 +636,7 @@ class Blueprint(object):
         self._blueprint = blueprint
         self._processStrPath = blueprint.get('process', None)
         self.category = blueprint.get('category', 'Other')
-        self._parameters = self._blueprint.get('parameters', {})
+        self._settings = self._blueprint.get('settings', {})
 
         initArgs, initKwargs = self.getArguments('__init__')
         self._module, _process = AtUtils.importProcessPath(self._processStrPath)
@@ -710,7 +717,7 @@ class Blueprint(object):
         return self._isNonBlocking
 
     def getParameter(parameter, default=None):
-        return self._parameters.get(parameter, default)
+        return self._settings.get(parameter, default)
 
     def getLowestFailStatus(self):
         return next(iter(sorted((thread._failStatus for thread in self._threads.values()), key=lambda x: x._priority)), None)

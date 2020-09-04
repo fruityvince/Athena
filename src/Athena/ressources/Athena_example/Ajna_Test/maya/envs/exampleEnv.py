@@ -62,10 +62,11 @@ register = \
         },
 }
 
-parameters = \
+settings = \
 {
     'recheck': True,
     'orderFeedbacksByPriority': False,
     'feedbackDisplayWarning': True,
     'feedbackDisplayWarningLimit': 100,
+    'allowRequestStop': True,
 }
