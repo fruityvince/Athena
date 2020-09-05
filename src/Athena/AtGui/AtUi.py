@@ -317,7 +317,8 @@ class Athena(QtWidgets.QMainWindow):
             self.deleteLater()
             return super(Athena, self).closeEvent(event)
 
-        self.toggleVisibility()
+        print self._action_Qtoolbar.pos()
+        self._toggleVisibility()
 
     def _setMinimal(self, topLevel):
         """Allow to switch canClose attribute to prevent window from closing without `action_Qtoolbar`.
@@ -460,8 +461,38 @@ class Athena(QtWidgets.QMainWindow):
 #TODO: There is still improvment to do on this widget to allow complex filters
 class SearchAndProgressBar(QtWidgets.QWidget):
 
+    STYLESHEET = \
+    """
+    QPushButton
+    {
+        border: none;
+        margin: 0px;
+        text-align: left;
+        height: 25px;
+        background-color: rgba(0, 0, 0, 0);
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        background-position: center;
+        border-radius: 7px;
+    }
+    QPushButton#searchButton
+    {
+        padding-left: 4px;
+    }
+    QPushButton#searchButton:hover
+    {
+        background-color: rgba(0, 0, 0, 70);
+    }
+    QPushButton#searchButton:pressed
+    {
+        background-color: rgba(0, 0, 0, 130);
+    }
+    """
+
     def __init__(self, parent=None):
         super(SearchAndProgressBar, self).__init__(parent=parent)
+
+        self._resourcesManager = AtUtils.RessourcesManager(__file__, backPath='..{0}ressources'.format(os.sep), key=AtConstants.PROGRAM_NAME)
 
         self._buildUi()
         self._setupUi()
@@ -469,18 +500,40 @@ class SearchAndProgressBar(QtWidgets.QWidget):
     def _buildUi(self):
 
         # -- Search and progress Stacked Layout
-        self._mainLayout = QtWidgets.QStackedLayout()
-        self.setLayout(self._mainLayout)   
+        self._mainLayout = QtWidgets.QStackedLayout(); self._mainLayout.setObjectName('mainLayout')
+        self.setLayout(self._mainLayout)
 
-        self._searchBar = QtWidgets.QLineEdit(self)
-        self._mainLayout.addWidget(self._searchBar)
+        self._searchLayout = QtWidgets.QHBoxLayout(); self._searchLayout.setObjectName('searchLayout')
+        self._searchWidget = QtWidgets.QWidget(); self._searchWidget.setObjectName('searchWidget')
+        self._searchWidget.setLayout(self._searchLayout)
+        self._mainLayout.addWidget(self._searchWidget)
 
-        self._progressBar = QtWidgets.QProgressBar(self)
+        #WIP: Thinking about how to use the button. Use `#` for filters for example.
+        self._searchButton = QtWidgets.QPushButton(self._resourcesManager.get('search.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self); self._searchButton.setObjectName('searchButton')
+        self._searchLayout.addWidget(self._searchButton)
+
+        self._searchBar = QtWidgets.QLineEdit(self); self._searchBar.setObjectName('searchBar')
+        self._searchLayout.addWidget(self._searchBar)
+
+        self._progressBar = QtWidgets.QProgressBar(self); self._progressBar.setObjectName('progressBar')
         self._mainLayout.addWidget(self._progressBar)
 
     def _setupUi(self):
-        self.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
+        self.setStyleSheet(self.STYLESHEET)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.setContentsMargins(0, 0, 0, 0)
         self.setFixedHeight(25)
+
+        # -- Search Layout
+        self._searchLayout.setSpacing(2)
+        self._searchLayout.setContentsMargins(0, 0, 0, 0)
+
+        # -- Search Button
+        self._searchButton.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
+
+        # -- Search Bar
+        self._searchBar.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self._searchBar.setFixedHeight(25)
 
     @property
     def searchBar(self):
@@ -675,7 +728,7 @@ class ProcessWidget(QtWidgets.QWidget):
         self._name_QLabel = QtWidgets.QPushButton(self._resourcesManager.get('right-arrow.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), self._name, self)
 
         # -- Tool PushButton
-        self._tool_QPushButton =  QtWidgets.QPushButton(self._resourcesManager.get('tool.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
+        self._tool_QPushButton = QtWidgets.QPushButton(self._resourcesManager.get('tool.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
 
         # -- Fix PushButton
         self._fix_QPushButton = QtWidgets.QPushButton(self._resourcesManager.get('fix.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
@@ -684,7 +737,7 @@ class ProcessWidget(QtWidgets.QWidget):
         self._check_QPushButton = QtWidgets.QPushButton(self._resourcesManager.get('check.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
 
         # -- Help PushButton
-        self._help_QPushButton =  QtWidgets.QPushButton(self._resourcesManager.get('help.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
+        self._help_QPushButton = QtWidgets.QPushButton(self._resourcesManager.get('help.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
 
         # -- Profiler PushButton
         if _DEV:
@@ -709,7 +762,7 @@ class ProcessWidget(QtWidgets.QWidget):
         container_QHBoxLayout.addWidget(self._fix_QPushButton)
         container_QHBoxLayout.addWidget(self._check_QPushButton)
         container_QHBoxLayout.addWidget(self._help_QPushButton)
-        if _DEV:
+        if _DEV: 
             container_QHBoxLayout.addWidget(self._profiler_QPushButton)
 
         self._header_QStackedLayout.addWidget(container_QWidget)
@@ -1465,9 +1518,9 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
 
         scrollAreaWidgetContents = ProcessesScrollAreaViewport()  # QtWidgets.QWidget(self)
         self.setWidget(scrollAreaWidgetContents)
-        self.layout = QtWidgets.QVBoxLayout(scrollAreaWidgetContents)
+        self._layout = QtWidgets.QVBoxLayout(scrollAreaWidgetContents)
 
-        self.scrollAreaWidgetContents = scrollAreaWidgetContents
+        self._scrollAreaWidgetContents = scrollAreaWidgetContents
 
         #FIXME This seems not to work with PyQt5
         # -- Fonts
@@ -1481,10 +1534,12 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         palette.setColor(QtGui.QPalette.Background, QtGui.QColor(50, 50, 50))
         self.setPalette(palette)
 
-        self.layout.setSpacing(1)
-        try: self.layout.setMargin(0)  # Deprecated in PyQt5 But not on PySide2
-        except: pass
-        self.scrollAreaWidgetContents.setContentsMargins(2, 2, 2, 2)
+        self._layout.setSpacing(1)
+        try: 
+            self._layout.setMargin(0)  # Deprecated in PyQt5 But not on PySide2
+        except Exception: 
+            pass
+        self._scrollAreaWidgetContents.setContentsMargins(2, 2, 2, 2)
 
     def keyPressEvent(self, event):
 
@@ -1497,7 +1552,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
     def refreshDisplay(self): #TODO: Maybe remove this wrapper. By renaming the addWidget.
         """ Refresh the display of the widget by removing all Widgets and rebuild the new one. """
 
-        self._clear(self.layout, safe=True)
+        self._clear(self._layout, safe=True)
         self._addWidgets()
         self._showNoProcess()
 
@@ -1523,7 +1578,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
             return
 
         self._buildWidgets()
-        self._clear(self.layout, safe=not _DEV)  # In dev mode, we always delete the widget to simplify the test.
+        self._clear(self._layout, safe=not _DEV)  # In dev mode, we always delete the widget to simplify the test.
 
         if blueprints:
             self._addWidgets()
@@ -1536,13 +1591,13 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         if self._processes:
             return
 
-        self._clear(self.layout, safe=False)
+        self._clear(self._layout, safe=False)
 
         noProcesses_QLabel = QtWidgets.QLabel('No Process Available')
         noProcesses_QLabel.setAlignment(QtCore.Qt.AlignCenter)
         noProcesses_QLabel.setStyleSheet('font: 15pt;')
         # noProcesses_QLabel.setFont(self.noProcesses_QFont)
-        self.layout.addWidget(noProcesses_QLabel)
+        self._layout.addWidget(noProcesses_QLabel)
 
     def runAllCheck(self):
         """ Execute check method on all visible processes that could be run.
@@ -1564,7 +1619,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
 
             self.progressValueChanged.emit(progressbarLen*i)
 
-            if process._blueprint._isCheckable and process.isChecked() and (process.isVisible() or not self._parent.canClose):
+            if process._blueprint._isCheckable and process.isChecked() and (process.isVisible() or not self._parent._canClose):
                 self.ensureWidgetVisible(process)
                 process.execCheck()
 
@@ -1590,11 +1645,11 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
 
             self.progressValueChanged.emit(progressbarLen*i)
 
-            # Skip processes with no error or that are in eception.
-            if process.status._type is not AtCore.Status.TYPE_FAIL or process.status is AtCore.Status._EXCEPTION:
+            # Skip processes with no error or that are in exception.
+            if not isinstance(process.status, AtCore.Status.FailStatus):
                 continue
 
-            if process.isFixable and process.isChecked() and (process.isVisible() or not self._parent.canClose):
+            if process._isFixable and process.isChecked() and (process.isVisible() or not self._parent.canClose):
                 self.ensureWidgetVisible(process)
                 process.execFix()
 
@@ -1643,9 +1698,9 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         """ Add widget in the scroll area by Blueprint order (default) """
 
         for index in self._processes.keys():
-            self.layout.addWidget(self._processes[index])
+            self._layout.addWidget(self._processes[index])
 
-        self.layout.addStretch()
+        self._layout.addStretch()
 
     def _addWidgetsByCategory(self):
         """ Add widgets in the scroll area by Category Order (Also add Label for category) """
@@ -1669,20 +1724,20 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
             category_QLabel.setAlignment(QtCore.Qt.AlignCenter | QtCore.Qt.AlignBottom)
             category_QLabel.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
             category_QLabel.setStyleSheet('font: 11pt; font-weight: bold')
-            self.layout.addWidget(category_QLabel)
+            self._layout.addWidget(category_QLabel)
 
             for process in processes:
-                self.layout.addWidget(process)
+                self._layout.addWidget(process)
 
-        self.layout.addStretch()
+        self._layout.addStretch()
 
     def _addWidgetsAlphabetically(self):
         """ Add widget in the scroll area by Blueprint order (default) """
 
         for process in sorted(self._processes.values(), key=lambda proc: proc._blueprint.name):
-            self.layout.addWidget(process)
+            self._layout.addWidget(process)
 
-        self.layout.addStretch()
+        self._layout.addStretch()
 
     def checkAll(self):
         """ Check all Process Widget in the scroll area """
@@ -1711,19 +1766,27 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
             Text used to filter processes in the area.
         """
 
-        for process in self._processes.values():
-            visibility = text.lower() in process._blueprint.name.lower()
-            process.setVisible(visibility)
-
+        #WIP: This function should not receive text but SearchPattern
         if not text:
             self.feedbackMessageRequested.emit('{} processes available'.format(len(self._processes)), 3000)
+            for process in self._processes.values():
+                process.setVisible(True)
             return
+
+        searchPattern = AtUtils.SearchPattern(text)
+
+        hashTags = set(searchPattern.iterHashTags(text))
+        for process in self._processes.values():
+            process.setVisible(all((
+                bool(searchPattern.search(process._blueprint._name)),  # Check if the str match the user regular expression.
+                process._status._name in hashTags if hashTags else True  # Check if the process are of a filtered Status.
+            )))
 
         visibleProcesses = [process for process in self._processes.values() if process.isVisible()]
         if not visibleProcesses:
-            self.feedbackMessageRequested.emit('No process match name "{}"'.format(text), 3000)
+            self.feedbackMessageRequested.emit('No process match pattern "{}"'.format(searchPattern.pattern), 3000)
         else:
-            self.feedbackMessageRequested.emit('Found {} processes that match name "{}"'.format(len(visibleProcesses), text), 3000)
+            self.feedbackMessageRequested.emit('Found {} processes that match name "{}"'.format(len(visibleProcesses), searchPattern.pattern), 3000)
 
     def _clear(self, layout, safe=False):
         """ Clear all items in the layout

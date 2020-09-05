@@ -559,6 +559,59 @@ def softwareSelection(toSelect):
         return
 
 
+class SearchPattern(object):
+
+    MATCH_NONE = '^$'
+
+    def __init__(self, pattern=MATCH_NONE):
+
+        self._pattern = pattern
+        self._regex = None
+        self._isValid = False
+
+        self._textPattern = r'(?!#)(^.+?)(?:(?=\s#[a-zA-Z]+)|$|\s$)'
+        self._textRegex = re.compile(self._textPattern)
+
+        self._hashPattern = r'(?:^|\s)?#([a-zA-Z]+)(?:\s|$)'
+        self._hashRegex = re.compile(self._hashPattern)
+
+        self.setPattern(pattern)
+
+    @property
+    def pattern(self):
+        return self._pattern
+
+    @property
+    def regex(self):
+        return self._regex      
+
+    @property
+    def isValid(self):
+        return self._isValid
+
+    def setPattern(self, pattern):
+        match = self._textRegex.match(pattern)
+        self._pattern = pattern = '.*' if not match else match.group(0)
+
+        try:
+            self._regex = re.compile(pattern)
+            self._isValid = True
+        except Exception:
+            self._regex = re.compile(self.MATCH_NONE)
+            self._isValid = False
+
+    def iterHashTags(self, text):
+        for match in self._hashRegex.finditer(text):
+            yield match.group(1)
+
+    def search(self, text):
+        if not self._isValid:
+            return False
+
+        return self._regex.search(text)
+
+
+
 ##########  IDEAS  ##########
 """
 

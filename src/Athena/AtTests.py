@@ -246,7 +246,6 @@ def __testEnv():
 
 def testEnvFromPath(contextStrPath, envStr):
     """Method to process unit tests on a process instance
-
     """
     envs = AtUtils.getEnvs(contextStrPath, software=AtUtils.getSoftware())
     env = envs.get(envStr)

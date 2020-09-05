@@ -9,10 +9,9 @@ __all__ = ('NoNGons',)
 
 class NoNGons(polygonShape.PolygonShape):
 
-    _name_ = 'Toto'
-
     def __init__(self):
         pass
 
     def check(self, mode='nGons'):
+    	raise Exception
         super(NoNGons, self).check(mode=mode)

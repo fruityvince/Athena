@@ -21,10 +21,10 @@ register = \
                 {
                     '__init__': ((), {})
                 },
-            # 'statusOverrides':
-            #   {
-            #       'NODES_WITH_HISTORY': {Status.FailStatus: Status.CRITICAL},
-            #   },
+            'statusOverrides':
+              {
+                  'NODES_WITH_HISTORY': {Status.FailStatus: Status.CRITICAL},
+              },
         },
 
     ID.NoNGons:
