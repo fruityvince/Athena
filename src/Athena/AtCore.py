@@ -613,6 +613,31 @@ class Register(object):
         return self._data[context]['envs'][env].get('icon', None)
 
 
+class Context(object):
+
+    def __init__(self, name):
+        self._name = name
+        
+        self._envs
+
+        self._iconPath
+        self._import
+        self._module
+        self._path
+
+
+class Env(object):
+
+    def __init__(self, name):
+        self._name = name
+
+        self._iconPath
+        self._import
+        self._module
+        self._parameters
+        self._path
+
+
 class Blueprint(object):
     """This object will manage a single process instance to be used through an ui.
 
@@ -1229,7 +1254,7 @@ class Status(object):
     _DEFAULT =  BuiltInStatus('Default', (65, 65, 65))
 
     # INFO =  FeedbackStatus('Info', (200, 200, 200))
-    PAUSED = FeedbackStatus('Paused', (255, 186, 0))
+    # PAUSED = FeedbackStatus('Paused', (255, 186, 0))
 
     CORRECT = SuccessStatus('Correct', (22, 194, 15), 0.1)
     SUCCESS = SuccessStatus('Success', (0, 128, 0), 0.2)
@@ -1246,6 +1271,14 @@ class Status(object):
     @classmethod
     def getAllStatus(cls):
         return [status for statusTypeList in cls.__Status._ALL_STATUS.values() for status in statusTypeList]
+
+    @classmethod
+    def getStatusByName(cls, name):
+        for status in cls.getAllStatus():
+            if status._name == name:
+                return status
+        else:
+            return None
 
     @classmethod
     def getAllFailStatus(cls):

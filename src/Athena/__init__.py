@@ -96,10 +96,12 @@ def _reload(main='__main__', verbose=False):
     import time
     reloadStartTime = time.time()
 
-    # ---------- Keep functions from AtUtils available in local variables ---------- #
-    # This function will clean all athena packages in sys.modules but we must keep these functions available.
+    # ---------- Keep functions from AtUtils and constant from AtConstants available in local variables ---------- #
+    # This function will clean all athena packages in sys.modules but we must keep these functions and constants 
+    # available while the function is processing.
     _import = AtUtils.importFromStr
     _reload = AtUtils.reloadModule
+    _programName = AtConstants.PROGRAM_NAME
 
     # ---------- Get which modules must be deleted and which must be reloaded ---------- #
     toDelete = {}
@@ -107,7 +109,7 @@ def _reload(main='__main__', verbose=False):
     atPackages = {package['import'] for package in AtUtils.getPackages().values()}
     for moduleName, module in sys.modules.items():
         # Skip all modules in sys.modules if they are not related to Athena and skip Athena main module that will be reloaded after.
-        if AtConstants.PROGRAM_NAME not in moduleName or moduleName == __name__:
+        if _programName not in moduleName or moduleName == __name__:
             continue
 
         # Some name contains modules that are None. We prefer to get rid of them.

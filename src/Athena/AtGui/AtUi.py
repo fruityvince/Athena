@@ -12,6 +12,8 @@ import webbrowser
 
 from Qt import QtCore, QtGui, QtWidgets
 
+# Dev Import
+from pprint import pprint
 
 _DEV = False
 
@@ -80,6 +82,8 @@ class Athena(QtWidgets.QMainWindow):
         
         global _DEV
         _DEV = dev
+
+        pprint(self._register.data)
 
         self._verbose = verbose
         self._configuration = {'context': context, 'env': env}
@@ -920,6 +924,10 @@ class ProcessWidget(QtWidgets.QWidget):
             self.toggleTraceback()
         elif event.button() is QtCore.Qt.MouseButton.RightButton:
             self.setChecked(not self.isChecked())
+        else:
+            return event.ignore()
+
+        return event.accept()
 
     def mouseReleaseEvent(self, event):
         """ Event handled by Qt to manage click release on the widget and reset it's color.
@@ -1048,7 +1056,7 @@ class ProcessWidget(QtWidgets.QWidget):
             except Exception as exception:
                 self.status = AtCore.Status._EXCEPTION  # The process encounter an exception during it's execution.
                 self.setFeedback(exception)
-                traceback.print_exc(exception)
+                print(AtUtils.formatTraceback(traceback.format_exc(exception)))
 
     def execFix(self):
         """ Run the `fix` method of the Blueprint's Process.
@@ -1073,7 +1081,7 @@ class ProcessWidget(QtWidgets.QWidget):
             except Exception as exception:
                 self.status = AtCore.Status._EXCEPTION  # The process encounter an exception during it's execution.
                 self.setFeedback(exception)
-                traceback.print_exc(exception)
+                print(AtUtils.formatTraceback(traceback.format_exc(exception)))
                 return
 
         # After a fix, re-launch a check to ensure everything is clean.
@@ -1097,7 +1105,7 @@ class ProcessWidget(QtWidgets.QWidget):
             except Exception as exception:
                 self.status = AtCore.Status._EXCEPTION  # The process encounter an exception during it's execution.
                 self.setFeedback(exception)
-                traceback.print_exc(exception)
+                print(AtUtils.formatTraceback(traceback.format_exc(exception)))
 
     class __ExecContext(object):
 
@@ -1319,6 +1327,15 @@ class TracebackWidget(QtWidgets.QPlainTextEdit):
         #WATCHME: It looks like for the first call off `self.horizontalScrollBar().height()` in sizeHint the value is wrong...
         self.horizontalScrollBar().setFixedHeight(12)
 
+    def mousePressEvent(self, event):
+        """Override the `mousePressEvent` to be abble to accept the event on right click. (`contextMenuEvent`)
+
+        """
+        if event.button() is QtCore.Qt.MouseButton.RightButton:
+            return event.accept()  # Accept the event to prevent bubble up.
+
+        return super(TracebackWidget, self).mousePressEvent(event)
+
     def contextMenuEvent(self, event):
         
         contextMenu = QtWidgets.QMenu(self)
@@ -1328,8 +1345,11 @@ class TracebackWidget(QtWidgets.QPlainTextEdit):
         printTraceback_QAction.triggered.connect(self.printTraceback)
         contextMenu.addAction(printTraceback_QAction)
 
-        contextMenu.popup(QtGui.QCursor.pos())
+        copyTraceback_QAction = QtWidgets.QAction('Copty to clipboard', contextMenu)
+        copyTraceback_QAction.triggered.connect(self.copyTracebackToClipboard)
+        contextMenu.addAction(copyTraceback_QAction)
 
+        contextMenu.popup(QtGui.QCursor.pos())
         return event.accept()
 
     def sizeHint(self):
@@ -1346,7 +1366,9 @@ class TracebackWidget(QtWidgets.QPlainTextEdit):
         return self.sizeHint()
 
     def logTraceback(self, exception):
-        self.document().setPlainText(traceback.format_exc(exception).rstrip())
+        #TODO: Think about a way to stor the exception in the widget.
+        
+        self.document().setPlainText(AtUtils.formatTraceback(traceback.format_exc(exception)))
 
         # When the text is too long and because the cursor is at the end, the scrollBar can already be on the right.
         self.moveCursor(QtGui.QTextCursor.Start)
@@ -1360,6 +1382,9 @@ class TracebackWidget(QtWidgets.QPlainTextEdit):
 
     def printTraceback(self):
         print(self.toPlainText())
+
+    def copyTracebackToClipboard(self, clipboard=QtWidgets.QApplication.clipboard()):
+        clipboard.setText(self.toPlainText())
 
 
 class ProfilerWidget(_AbstractLogTreeWidget):
@@ -1385,10 +1410,6 @@ class ProcessDisplayStackedLayout(QtWidgets.QStackedLayout):
         return super(ProcessDisplayStackedLayout, self).setCurrentWidget(widget)
 
 class ProcessDisplayWidget(QtWidgets.QWidget):
-
-    FEEDBACK_MODE = 0
-    TRACEBACK_MODE = 1
-    PROFILER_MODE = 2
 
     sizeChanged = QtCore.Signal(QtCore.QSize)
 
@@ -1452,7 +1473,7 @@ class ProcessDisplayWidget(QtWidgets.QWidget):
         self.updateGeometry()
 
     def displayTracebak(self):        
-        # This allow to not have tracebackWidget if not needed.
+        # This will lazilly load the tracebackWidget, it will create it if it has been requested.
         if self._tracebackWidget is None:
             self._addTracebackWidget()
         self._mainLayout.setCurrentWidget(self._tracebackWidget)
@@ -1460,7 +1481,7 @@ class ProcessDisplayWidget(QtWidgets.QWidget):
         self.updateGeometry()
 
     def displayProfiler(self):
-        # This allow to not have profilerWidget if not needed.
+        # This will lazilly load the profilerWidget, it will create it if it has been requested.
         if self._profilerWidget is None:
             self._addProfilerWidget()
         self._mainLayout.setCurrentWidget(self._profilerWidget)
@@ -1774,12 +1795,13 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
             return
 
         searchPattern = AtUtils.SearchPattern(text)
-
         hashTags = set(searchPattern.iterHashTags(text))
+
+        allowedStatus = set(filter(None, (AtCore.Status.getStatusByName(statusName) for statusName in hashTags)))
         for process in self._processes.values():
             process.setVisible(all((
                 bool(searchPattern.search(process._blueprint._name)),  # Check if the str match the user regular expression.
-                process._status._name in hashTags if hashTags else True  # Check if the process are of a filtered Status.
+                process._status in allowedStatus if hashTags else True  # Check if the process are of a filtered Status.
             )))
 
         visibleProcesses = [process for process in self._processes.values() if process.isVisible()]

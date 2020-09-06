@@ -611,6 +611,8 @@ class SearchPattern(object):
         return self._regex.search(text)
 
 
+def formatTraceback(traceback):
+    return '# ' + '# '.join(traceback.rstrip().splitlines(True))
 
 ##########  IDEAS  ##########
 """
