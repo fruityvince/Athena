@@ -10,13 +10,16 @@ import sys
 import traceback
 import webbrowser
 
-from Qt import QtCore, QtGui, QtWidgets
+from Qt import QtCore, QtGui, QtWidgets, __binding__
 
-# Dev Import
+#WATCHME: Dev Import
 from pprint import pprint
 
 _DEV = False
+_USE_ATHENA_STYLESHEET = True
 
+
+#WATCHME: CSS : QCssParser::parseColorValue: Specified color without alpha value but alpha given: 'rgb 255, 255, 255, 25'
 
 class SettingsManager(object):
 
@@ -39,7 +42,7 @@ class SettingsManager(object):
         for setting, getter in cls.__GETTER_METHODS.items():
             cls.__SETTINGS.setValue(setting, getter())
 
-class Athena(QtWidgets.QMainWindow):
+class AthenaWidget(QtWidgets.QWidget):
     """Main ui for Athena, it offer all possible features available from The API and is Available on multiple softwares.
 
     The Athena is a tool made to execute conformity processes to check/fix errors based on the current software or OS, 
@@ -56,7 +59,48 @@ class Athena(QtWidgets.QMainWindow):
 
     """
 
-    def __init__(self, context=None, env=None, displayMode=AtConstants.AVAILABLE_DISPLAY_MODE[0], dev=False, verbose=False):
+    STYLESHEET = \
+    """
+    AthenaWidget
+    {
+        background-color: rgb(70, 70, 70);
+    }
+
+    QMenuBar
+    {
+        color: rgb(200, 200, 200);
+        background-color: rgb(70, 70, 70);
+    }
+
+    QComboBox
+    {
+        color: rgb(200, 200, 200);
+        background-color: rgb(90, 90, 90);
+    }
+    QComboBox QAbstractItemView 
+    {
+        background-color: rgb(50, 50, 50);
+    }
+
+    QToolButton
+    {
+        color: rgb(200, 200, 200);
+        background-color: rgba(0, 0, 0, 0);
+        height: 20px;
+        border: none;
+        border-radius: 4px;
+    }
+    QToolButton:hover
+    {
+        background-color: rgba(0, 0, 0, 70);
+    }
+    QToolButton:pressed
+    {
+        background-color: rgba(0, 0, 0, 40);
+    }
+    """
+
+    def __init__(self, context=None, env=None, displayMode=AtConstants.AVAILABLE_DISPLAY_MODE[0], dev=False, verbose=False, parent=None):
         """ Initialise the Athena tool by loading ressources, getting register and all other data for ui.
 
         Parameters
@@ -73,8 +117,9 @@ class Athena(QtWidgets.QMainWindow):
             Should the tool print informations about its execution. (default: False)
         """
 
-        self._parentApplication = getParentApplication()
-        super(Athena, self).__init__(self._parentApplication)
+        super(AthenaWidget, self).__init__(parent)
+
+        self.setWindowFlags(QtCore.Qt.Window)
 
         self._register = AtCore.Register(verbose=verbose)
         self._resourcesManager = AtUtils.RessourcesManager(__file__, backPath='..{0}ressources'.format(os.sep), key=AtConstants.PROGRAM_NAME)
@@ -83,19 +128,16 @@ class Athena(QtWidgets.QMainWindow):
         global _DEV
         _DEV = dev
 
-        pprint(self._register.data)
-
         self._verbose = verbose
         self._configuration = {'context': context, 'env': env}
-
-        self._canClose = True
         
         # Build, Setup and connect the ui
         self._buildUi()
         self._setupUi()
         self._connectUi()
 
-        self._setupContext()
+        # self._setupContext()
+        self.reload()
 
         self.resize(
             SettingsManager.loadSetting('width', default=400, type=int, getter=self.width), 
@@ -110,18 +152,21 @@ class Athena(QtWidgets.QMainWindow):
     def _buildUi(self):
         """ Create all widgets and layout for the ui """
 
-        # -- Central Widget
-        self._centralWidget = QtWidgets.QWidget()
-        self._mainLayout = QtWidgets.QVBoxLayout(self._centralWidget)
-        self.setCentralWidget(self._centralWidget)
+        self.setObjectName(self.__class__.__name__)
+
+        # -- Main Layout
+        self._mainLayout = QtWidgets.QVBoxLayout(self); self._mainLayout.setObjectName('mainLayout')
+        self._subLayout = QtWidgets.QVBoxLayout(); self._subLayout.setObjectName('subLayout')
 
         # -- MenuBar
-        self._menu = self.menuBar()
-        self._option_QMenu = self._menu.addMenu('Options')
-        self._register_QMenu = self._menu.addMenu('Register')
+        self._menuBar = QtWidgets.QMenuBar(); self._menuBar.setObjectName('menuBar')
+        self._option_QMenu = self._menuBar.addMenu('Options')
+        self._register_QMenu = self._menuBar.addMenu('Register')
         if _DEV:
-            self._dev_QMenu = self._menu.addMenu('Dev')
-        self._help_QMenu = self._menu.addMenu('Help')
+            self._dev_QMenu = self._menuBar.addMenu('Dev')
+        self._help_QMenu = self._menuBar.addMenu('Help')
+
+        self._mainLayout.addWidget(self._menuBar)
 
         # -- Options Menu
         # self._option_QMenu.addSection('Enable Processes')
@@ -177,45 +222,45 @@ class Athena(QtWidgets.QMainWindow):
             self._dev_QMenu.addAction(self._documentation_QAction)
 
         # -- Context & Environment Toolbar
-        self._environment_toolbar = QtWidgets.QToolBar('Environment', self)
+        self._toolbar = QtWidgets.QToolBar()
 
-        self._contexts_QComboBox = QtWidgets.QComboBox(self)
-        self._environment_toolbar.addWidget(self._contexts_QComboBox)
+        self._contexts_QComboBox = QtWidgets.QComboBox(self); self._contexts_QComboBox.setObjectName('contexts_QComboBox')
+        self._toolbar.addWidget(self._contexts_QComboBox)
 
-        self._envs_QComboBox = QtWidgets.QComboBox(self)
-        self._environment_toolbar.addWidget(self._envs_QComboBox)
+        self._envs_QComboBox = QtWidgets.QComboBox(self); self._envs_QComboBox.setObjectName('envs_QComboBox')
+        self._toolbar.addWidget(self._envs_QComboBox)
 
-        self.addToolBar(self._environment_toolbar)
+        self._runAllCheck_QAction = QtWidgets.QAction(self._resourcesManager.get('check.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), 'Check all', self); self._runAllCheck_QAction.setObjectName('runAllCheck_QAction')
+        self._toolbar.addAction(self._runAllCheck_QAction)
 
-        # -- Quick Action Toolbar
-        self._action_Qtoolbar = QtWidgets.QToolBar('Actions')  #TODO: Maybe show a button to show ui when this is detached. The close event will only hide ui.
+        self._runAllFix_QAction = QtWidgets.QAction(self._resourcesManager.get('fix.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), 'Fix all', self); self._runAllFix_QAction.setObjectName('runAllFix_QAction')
+        self._toolbar.addAction(self._runAllFix_QAction)
 
-        self._runAllCheck_QAction = QtWidgets.QAction(self._resourcesManager.get('check.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), 'Check all', self)
-        self._action_Qtoolbar.addAction(self._runAllCheck_QAction)
-
-        self._runAllFix_QAction = QtWidgets.QAction(self._resourcesManager.get('fix.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), 'Fix all', self)
-        self._action_Qtoolbar.addAction(self._runAllFix_QAction)
-
-        self._toggleWindow_QAction = QtWidgets.QAction(self._resourcesManager.get('switch.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self)
-        self._action_Qtoolbar.addAction(self._toggleWindow_QAction)
-
-        self.addToolBar(self._action_Qtoolbar)
+        self._subLayout.addWidget(self._toolbar)
 
         # -- Search and progress bar
         self._searchAndProgressBar = SearchAndProgressBar(self)
-        self._mainLayout.addWidget(self._searchAndProgressBar)  
+        self._subLayout.addWidget(self._searchAndProgressBar)  
 
         # -- Processes Scroll Area
-        self._processes_ProcessesScrollArea = ProcessesScrollArea(self._register, self)
-        self._processes_ProcessesScrollArea.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-        self._mainLayout.addWidget(self._processes_ProcessesScrollArea)
+        self._processWidgets_ProcessesScrollArea = ProcessesScrollArea(self._register, self)
+        self._processWidgets_ProcessesScrollArea.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self._subLayout.addWidget(self._processWidgets_ProcessesScrollArea)
 
         # -- Statusbar
-        self._version_Qlabel = QtWidgets.QLabel(AtConstants.VERSION)
-        self.statusBar().addPermanentWidget(self._version_Qlabel)
+        # self._version_Qlabel = QtWidgets.QLabel(AtConstants.VERSION)
+        # self.statusBar().addPermanentWidget(self._version_Qlabel)
+
+        self._mainLayout.addLayout(self._subLayout)
 
     def _setupUi(self):
         """ Setup all widgets, Layout in the ui and the main window """
+
+        self.setStyleSheet(self.STYLESHEET)
+
+        self.setContentsMargins(0, 0, 0, 0)
+        self._mainLayout.setContentsMargins(0, 0, 0, 0)
+        self._subLayout.setContentsMargins(5, 5, 5, 5)
 
         # -- Options Menu
         self._option_QMenu.setSeparatorsCollapsible(False)
@@ -233,33 +278,28 @@ class Athena(QtWidgets.QMainWindow):
         
         self._orderBy.setExclusive(True)
 
+        # -- Action Toolbar
+        self._toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+        self._toolbar.setIconSize(QtCore.QSize(15, 15))
+
         # -- Setup contexts, the env will be dinamically set according to the data stored in env. (see connectUi)
         self._setupContext()
-
-        # -- Action Toolbar
-        self._action_Qtoolbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
-        self._action_Qtoolbar.setIconSize(QtCore.QSize(15, 15))
 
         # -- Shortcuts
         self.runAllCheck_QShortcut = QtWidgets.QShortcut(QtGui.QKeySequence(QtCore.Qt.ALT + QtCore.Qt.Key_C), self)
         self.runAllFix_QShortcut = QtWidgets.QShortcut(QtGui.QKeySequence(QtCore.Qt.ALT + QtCore.Qt.Key_F), self)
         self.reloadBlueprintsModules_QShortcut = QtWidgets.QShortcut(QtGui.QKeySequence(QtCore.Qt.ALT + QtCore.Qt.Key_R), self)
 
-        self._toggleWindow_QAction.setVisible(False)
-
         # -- Search and progress bar
         self._searchAndProgressBar.searchBar.setPlaceholderText('Filter Processes...')
-
-        # -- Statusbar
-        self._version_Qlabel.setEnabled(False)
 
     def _connectUi(self):
         """ Connect all widgets to their methods """
 
         # -- Options Menu
-        self._checkAll_QAction.triggered.connect(self._processes_ProcessesScrollArea.checkAll)
-        self._uncheckAll_QAction.triggered.connect(self._processes_ProcessesScrollArea.uncheckAll)
-        self._defaultAll_QAction.triggered.connect(self._processes_ProcessesScrollArea.defaultAll)
+        self._checkAll_QAction.triggered.connect(self._processWidgets_ProcessesScrollArea.checkAll)
+        self._uncheckAll_QAction.triggered.connect(self._processWidgets_ProcessesScrollArea.uncheckAll)
+        self._defaultAll_QAction.triggered.connect(self._processWidgets_ProcessesScrollArea.defaultAll)
 
         self._orderBy.triggered.connect(self.setDisplayMode, QtCore.Qt.UniqueConnection)
 
@@ -268,8 +308,8 @@ class Athena(QtWidgets.QMainWindow):
         
         self._envs_QComboBox.currentIndexChanged.connect(self.reload, QtCore.Qt.UniqueConnection)
 
-        self._runAllCheck_QAction.triggered.connect(self._processes_ProcessesScrollArea.runAllCheck, QtCore.Qt.UniqueConnection)
-        self._runAllFix_QAction.triggered.connect(self._processes_ProcessesScrollArea.runAllFix, QtCore.Qt.UniqueConnection)
+        self._runAllCheck_QAction.triggered.connect(self._processWidgets_ProcessesScrollArea.runAllCheck, QtCore.Qt.UniqueConnection)
+        self._runAllFix_QAction.triggered.connect(self._processWidgets_ProcessesScrollArea.runAllFix, QtCore.Qt.UniqueConnection)
 
         # -- Help Menu
         self._openWiki_QAction.triggered.connect(partial(QtGui.QDesktopServices.openUrl, AtConstants.WIKI_LINK), QtCore.Qt.UniqueConnection)
@@ -280,29 +320,18 @@ class Athena(QtWidgets.QMainWindow):
             self.reloadBlueprints_QAction.triggered.connect(self.reloadBlueprintsModules, QtCore.Qt.UniqueConnection)
             self._documentation_QAction.triggered.connect(partial(QtGui.QDesktopServices.openUrl, AtConstants.WIKI_LINK), QtCore.Qt.UniqueConnection)
 
-        # Action Toolbar
-        self._action_Qtoolbar.topLevelChanged.connect(self._setMinimal, QtCore.Qt.UniqueConnection)
-
-        self._toggleWindow_QAction.triggered.connect(self._toggleVisibility, QtCore.Qt.UniqueConnection)
-
         # -- Search and progress bar
-        self._searchAndProgressBar.searchBar.textChanged.connect(self._processes_ProcessesScrollArea.filterProcesses, QtCore.Qt.UniqueConnection)
+        self._searchAndProgressBar.searchBar.textChanged.connect(self._processWidgets_ProcessesScrollArea.filterProcesses, QtCore.Qt.UniqueConnection)
 
         # -- Shortcuts
-        self.runAllCheck_QShortcut.activated.connect(self._processes_ProcessesScrollArea.runAllCheck)
-        self.runAllFix_QShortcut.activated.connect(self._processes_ProcessesScrollArea.runAllFix)
+        self.runAllCheck_QShortcut.activated.connect(self._processWidgets_ProcessesScrollArea.runAllCheck)
+        self.runAllFix_QShortcut.activated.connect(self._processWidgets_ProcessesScrollArea.runAllFix)
         self.reloadBlueprintsModules_QShortcut.activated.connect(self.reloadBlueprintsModules)
 
         # -- Processes Scroll Area
-        self._processes_ProcessesScrollArea.feedbackMessageRequested.connect(self.statusBar().showMessage)
-        self._processes_ProcessesScrollArea.progressValueChanged.connect(self._searchAndProgressBar.setValue)
-        self._processes_ProcessesScrollArea.progressValueReseted.connect(self._searchAndProgressBar.reset)
-
-    def _refreshUi(self):
-        """ """
-
-        # self._register.setup_data()  #TODO: This should be called when necessary only.
-        pass
+        # self._processWidgets_ProcessesScrollArea.feedbackMessageRequested.connect(self.statusBar().showMessage)
+        self._processWidgets_ProcessesScrollArea.progressValueChanged.connect(self._searchAndProgressBar.setValue)
+        self._processWidgets_ProcessesScrollArea.progressValueReseted.connect(self._searchAndProgressBar.reset)
 
     def closeEvent(self, event):
         """Call when the ui is about to close, allow to close the ui.
@@ -316,40 +345,15 @@ class Athena(QtWidgets.QMainWindow):
             Close event given by Qt to this method.
         """
 
-        if self._canClose:
-            SettingsManager.saveSettings()
-            self.deleteLater()
-            return super(Athena, self).closeEvent(event)
-
-        print self._action_Qtoolbar.pos()
-        self._toggleVisibility()
-
-    def _setMinimal(self, topLevel):
-        """Allow to switch canClose attribute to prevent window from closing without `action_Qtoolbar`.
-
-        parameters:
-        -----------
-        topLevel: bool
-            Current topLevel state of the `action_Qtoolbar` widget.
-        """
-
-        if topLevel:
-            self._canClose = False
-            self._toggleWindow_QAction.setVisible(True)
-        else:
-            self._canClose = True
-            self._toggleWindow_QAction.setVisible(False)
-
-    def _toggleVisibility(self):
-        """ Switch window visibility """
-
-        self.setVisible(not self.isVisible())
+        SettingsManager.saveSettings()
+        self.deleteLater()
+        return super(AthenaWidget, self).closeEvent(event)
 
     def reload(self):
         """ Reload the current blueprints and set the data of the scroll area. """
 
         with BusyCursor():
-            self._processes_ProcessesScrollArea.setBlueprints(self.getBlueprints())
+            self._processWidgets_ProcessesScrollArea.setBlueprints(self.getBlueprints())
 
             # Restore the current filter to hidde checks that does not match the search.
             self._searchAndProgressBar.searchBar.textChanged.emit(self._searchAndProgressBar.searchBar.text())
@@ -361,15 +365,14 @@ class Athena(QtWidgets.QMainWindow):
         ------
             Usefull for devellopement purposes, allow to reload the processes classes without breaking the pointers.
         """
+        self._register.reload()
+        self._setupContext()
 
-        modules = self._register.reloadBlueprintsModules()
         self.reload()
-
-        self.statusBar().showMessage('Reload {0} modules for {1}'.format(len(modules), self._envs_QComboBox.currentText()), 5000)
+        self.statusBar().showMessage('Successfully reload blueprint\'s modules for env `{0}`.'.format(self._envs_QComboBox.currentText()), 5000)
 
     def _setupContext(self):
         """ Switch the current context used by the tool. """
-
         register = self._register
 
         with BusyCursor(), BlockSignals([self._contexts_QComboBox], block=True):
@@ -379,8 +382,8 @@ class Athena(QtWidgets.QMainWindow):
             currentContext = contexts_QComboBox.currentText()
             contexts_QComboBox.clear()
 
-            for context in register.contexts:
-                contexts_QComboBox.addItem(QtGui.QIcon(register.getContextIcon(context)), context)
+            for context in register._contexts:
+                contexts_QComboBox.addItem(QtGui.QIcon(context.iconPath), context._name, context)
 
             # Fallback 1: If there is a value in the QComboBox before, switch on the same value for the new context if exists
             currentIndex = contexts_QComboBox.findText(currentContext)
@@ -411,7 +414,6 @@ class Athena(QtWidgets.QMainWindow):
         ------
             If the method is called after context changed and current env also exist in the new context, it will stay on the same env.
         """
-
         register = self._register
 
         with BusyCursor(), BlockSignals([self._envs_QComboBox], block=True):
@@ -421,8 +423,8 @@ class Athena(QtWidgets.QMainWindow):
 
             envs_QComboBox = self._envs_QComboBox
 
-            # Get the context from in contexts QComboBox from index given by signal
-            context = self._contexts_QComboBox.itemText(index)
+            # Get the context from contexts_QComboBox index given by signal
+            context = self._contexts_QComboBox.itemData(index, QtCore.Qt.UserRole)
             if not context: 
                 return
 
@@ -430,8 +432,8 @@ class Athena(QtWidgets.QMainWindow):
             currentEnv = envs_QComboBox.currentText()
             envs_QComboBox.clear()
 
-            for env in register.getEnvs(context):
-                envs_QComboBox.addItem(QtGui.QIcon(register.getEnvIcon(context, env)), env)
+            for env in context.envs:
+                envs_QComboBox.addItem(QtGui.QIcon(env.iconPath), env._name, env)
 
             # Fallback 1: If there is a value in the QComboBox before, switch on the same value for the new context if exists
             currentIndex = envs_QComboBox.findText(currentEnv)
@@ -453,13 +455,13 @@ class Athena(QtWidgets.QMainWindow):
     def setDisplayMode(self):
         """ Change the current display mode of the scroll area widget. """
 
-        self._processes_ProcessesScrollArea.displayMode = self._orderBy.checkedAction().text()
-        self._processes_ProcessesScrollArea.refreshDisplay()
+        self._processWidgets_ProcessesScrollArea.displayMode = self._orderBy.checkedAction().text()
+        self._processWidgets_ProcessesScrollArea.refreshDisplay()
 
     def getBlueprints(self):
         """ Get the blueprint from the register from current context and env. """
-
-        return  self._register.getBlueprints(self._contexts_QComboBox.currentText(), self._envs_QComboBox.currentText(), forceReload=_DEV)
+        envData = self._envs_QComboBox.itemData(self._envs_QComboBox.currentIndex(), QtCore.Qt.UserRole)
+        return None if not envData else envData.blueprints
 
 
 #TODO: There is still improvment to do on this widget to allow complex filters
@@ -467,29 +469,22 @@ class SearchAndProgressBar(QtWidgets.QWidget):
 
     STYLESHEET = \
     """
-    QPushButton
+    QLineEdit#searchBar
     {
-        border: none;
-        margin: 0px;
-        text-align: left;
-        height: 25px;
-        background-color: rgba(0, 0, 0, 0);
-        background-repeat: no-repeat;
-        background-attachment: fixed;
-        background-position: center;
-        border-radius: 7px;
+        background-color: rgba(0, 0, 0, 60);
+        border-width: 1px;
+        border-style: solid;
+        border-radius: 3px;
+        border-color: rgb(255, 255, 255, 25);
+        color: rgba(255, 255, 255, 200);
     }
-    QPushButton#searchButton
-    {
-        padding-left: 4px;
-    }
-    QPushButton#searchButton:hover
+    QLineEdit#searchBar:hover
     {
         background-color: rgba(0, 0, 0, 70);
     }
-    QPushButton#searchButton:pressed
+    QLineEdit#searchBar:Focus
     {
-        background-color: rgba(0, 0, 0, 130);
+        border-color: rgba(93, 138, 168, 200);
     }
     """
 
@@ -507,17 +502,8 @@ class SearchAndProgressBar(QtWidgets.QWidget):
         self._mainLayout = QtWidgets.QStackedLayout(); self._mainLayout.setObjectName('mainLayout')
         self.setLayout(self._mainLayout)
 
-        self._searchLayout = QtWidgets.QHBoxLayout(); self._searchLayout.setObjectName('searchLayout')
-        self._searchWidget = QtWidgets.QWidget(); self._searchWidget.setObjectName('searchWidget')
-        self._searchWidget.setLayout(self._searchLayout)
-        self._mainLayout.addWidget(self._searchWidget)
-
-        #WIP: Thinking about how to use the button. Use `#` for filters for example.
-        self._searchButton = QtWidgets.QPushButton(self._resourcesManager.get('search.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), '', self); self._searchButton.setObjectName('searchButton')
-        self._searchLayout.addWidget(self._searchButton)
-
         self._searchBar = QtWidgets.QLineEdit(self); self._searchBar.setObjectName('searchBar')
-        self._searchLayout.addWidget(self._searchBar)
+        self._mainLayout.addWidget(self._searchBar)
 
         self._progressBar = QtWidgets.QProgressBar(self); self._progressBar.setObjectName('progressBar')
         self._mainLayout.addWidget(self._progressBar)
@@ -528,16 +514,12 @@ class SearchAndProgressBar(QtWidgets.QWidget):
         self.setContentsMargins(0, 0, 0, 0)
         self.setFixedHeight(25)
 
-        # -- Search Layout
-        self._searchLayout.setSpacing(2)
-        self._searchLayout.setContentsMargins(0, 0, 0, 0)
-
-        # -- Search Button
-        self._searchButton.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
-
         # -- Search Bar
         self._searchBar.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self._searchBar.setFixedHeight(25)
+
+        if __binding__ in ('PySide2', 'PyQt5'):
+            self._searchBar.addAction(self._resourcesManager.get('search.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), QtWidgets.QLineEdit.LeadingPosition)
 
     @property
     def searchBar(self):
@@ -653,6 +635,7 @@ class ProcessWidget(QtWidgets.QWidget):
     """
     QPushButton
     {
+        color: rgb(200, 200, 200);
         border: none;
         margin: 0px;
         text-align: left;
@@ -844,9 +827,11 @@ class ProcessWidget(QtWidgets.QWidget):
         self._main_QVBoxLayout.setContentsMargins(0, 0, 0, 0)
         self._main_QVBoxLayout.setSpacing(0)
 
-        # palette = self.palette()
-        # palette.setColor(palette.Background, Status.DEFAULT.color)
-        # self.setPalette(palette)
+        #WATCHME: It seems that without this the background will stay white untill palette is refreshed.
+        palette = self.palette()
+        palette.setColor(palette.Background, self.__frameQColor)
+        self.setPalette(palette)
+
         self.setAutoFillBackground(True)
 
         self.setStyleSheet(self.STYLESHEET)
@@ -963,7 +948,7 @@ class ProcessWidget(QtWidgets.QWidget):
         self._status = newStatus
         self.__frameQColor.setRgb(*newStatus._color)
 
-    def setFeedback(self, feedback):
+    def logResult(self, feedback):
         self._feedback = feedback
 
         if not feedback:
@@ -975,6 +960,9 @@ class ProcessWidget(QtWidgets.QWidget):
             self._processDisplay.logFeedback(feedback)
         elif isinstance(feedback, Exception):
             self._processDisplay.logTraceback(feedback)
+        else:
+            raise NotImplementedErrror('Data to log are not implemented yet.')
+
         self.openTraceback()
 
     def toggleTraceback(self):
@@ -1047,15 +1035,15 @@ class ProcessWidget(QtWidgets.QWidget):
 
                 self.status = status
                 if isinstance(status, AtCore.Status.FailStatus):
-                    self.setFeedback(result)
+                    self.logResult(result)
                     self._fix_QPushButton.setVisible(self._isFixable)
                 elif isinstance(status, AtCore.Status.SuccessStatus):
-                    self.setFeedback(None)
+                    self.logResult(None)
                     self._fix_QPushButton.setVisible(False)
 
             except Exception as exception:
                 self.status = AtCore.Status._EXCEPTION  # The process encounter an exception during it's execution.
-                self.setFeedback(exception)
+                self.logResult(exception)
                 print(AtUtils.formatTraceback(traceback.format_exc(exception)))
 
     def execFix(self):
@@ -1072,15 +1060,15 @@ class ProcessWidget(QtWidgets.QWidget):
 
                 self.status = status
                 if isinstance(status, AtCore.Status.FailStatus):
-                    self.setFeedback(result)
+                    self.logResult(result)
                     self._fix_QPushButton.setVisible(self._isFixable)
                 elif isinstance(status, AtCore.Status.SuccessStatus):
-                    self.setFeedback(None)
+                    self.logResult(None)
                     self._fix_QPushButton.setVisible(False)
 
             except Exception as exception:
                 self.status = AtCore.Status._EXCEPTION  # The process encounter an exception during it's execution.
-                self.setFeedback(exception)
+                self.logResult(exception)
                 print(AtUtils.formatTraceback(traceback.format_exc(exception)))
                 return
 
@@ -1104,7 +1092,7 @@ class ProcessWidget(QtWidgets.QWidget):
 
             except Exception as exception:
                 self.status = AtCore.Status._EXCEPTION  # The process encounter an exception during it's execution.
-                self.setFeedback(exception)
+                self.logResult(exception)
                 print(AtUtils.formatTraceback(traceback.format_exc(exception)))
 
     class __ExecContext(object):
@@ -1135,9 +1123,64 @@ class _AbstractLogTreeWidget(QtWidgets.QTreeWidget):
     It will override the sizeHint method to allow TreeWidget to rescale automatically based on it's content.
 
     """
+    # see `outline` for Focus -> does not seeems to work.
+    # For maya it's still better without style..
+    STYLESHEET = \
+    """
+
+    QAbstractScrollArea
+    {
+        margin-left: 1px;
+        margin-right: 1px;
+        margin-bottom: 1px;
+    }
+
+    QTreeWidget
+    {   
+        background-color: rgba(45, 45, 45, 255);
+        alternate-background-color: rgba(55, 55, 55, 255);
+        color: rgb(200, 200, 200);
+    }
+    QTreeWidget:Focus
+    {
+        border-width: 1px;
+        border-style: solid;
+        border-color: rgba(93, 138, 168, 200);
+    }
+    QTreeWidget::item:hover, QTreeWidget::item:hover:selected 
+    {
+        background-color: rgba(55, 55, 55, 120);
+    }
+
+    QTreeWidget::item:selected 
+    {
+        border:none;
+        background-color: rgba(255,255,255,0);
+    }
+
+    QHeaderView
+    {
+        margin: 0px;
+    }
+    QHeaderView::section
+    {   
+        color: rgb(200, 200, 200);
+        background-color: rgb(90, 90, 90);
+    }
+
+    QScrollBar
+    {
+        margin: 1px;
+    }
+    """
 
     def __init__(self, parent=True):
         super(_AbstractLogTreeWidget, self).__init__(parent)
+
+        self.setAttribute(QtCore.Qt.WA_StyledBackground, True)
+        # self.setAutoFillBackground(True)
+        # self.setStyleSheet(self.STYLESHEET)
+        self.setAlternatingRowColors(True)
 
     def sizeHint(self):
         sizeHint = super(_AbstractLogTreeWidget, self).sizeHint()
@@ -1233,7 +1276,7 @@ class FeedbackWidget(_AbstractLogTreeWidget):
         for feedback in feedbacks:
             thread = feedback._thread
 
-            if feedback._toDisplay:
+            if feedback.hasFeedback():
                 parent = QtWidgets.QTreeWidgetItem([str(feedback._thread._title), '        found {0}'.format(str(len(feedback._toDisplay)))])
                 # parent.setForeground(1, QtGui.QColor(*thread._status._color))  # Color the number of issue with the status color.
                 parent.setChildIndicatorPolicy(QtWidgets.QTreeWidgetItem.ShowIndicator)
@@ -1513,6 +1556,40 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
     progressValueChanged = QtCore.Signal(float)
     progressValueReseted = QtCore.Signal()
 
+    STYLESHEET = \
+    """
+    QScrollArea
+    {
+        background-color: rgba(45, 45, 45, 255);
+        border-width: 1px;
+        border-style: solid;
+        border-radius: 3px;
+        border-color: transparent;
+    }
+    QScrollArea:Focus
+    {
+        border-color: rgba(93, 138, 168, 200);
+    }
+
+    ProcessesScrollAreaViewport
+    {
+        background-color: rgba(45, 45, 45, 255);
+        border-width: 1px;
+        border-style: solid;
+        border-radius: 3px;
+        border-color: transparent;
+    }
+    ProcessesScrollAreaViewport:Focus
+    {
+        border-color: rgba(93, 138, 168, 200);
+    }
+
+    QLabel
+    {
+        color: rgb(200, 200, 200);
+    }
+    """
+
     def __init__(self, register, parent=None):
         super(ProcessesScrollArea, self).__init__()
 
@@ -1521,7 +1598,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         self.displayMode = AtConstants.AVAILABLE_DISPLAY_MODE[0]
 
         self._blueprints = []
-        self._processes = {}
+        self._processWidgets = []
 
         self._stopRequested = False
 
@@ -1537,11 +1614,9 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
     def _buildUi(self):
         """ Build the Scroll Area Widget """
 
-        scrollAreaWidgetContents = ProcessesScrollAreaViewport()  # QtWidgets.QWidget(self)
-        self.setWidget(scrollAreaWidgetContents)
-        self._layout = QtWidgets.QVBoxLayout(scrollAreaWidgetContents)
-
-        self._scrollAreaWidgetContents = scrollAreaWidgetContents
+        self._scrollAreaWidgetContents = ProcessesScrollAreaViewport(); self._scrollAreaWidgetContents.setObjectName('scrollAreaWidgetContents')
+        self.setWidget(self._scrollAreaWidgetContents)
+        self._layout = QtWidgets.QVBoxLayout(self._scrollAreaWidgetContents)
 
         #FIXME This seems not to work with PyQt5
         # -- Fonts
@@ -1551,9 +1626,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
     def _setupUi(self):
         """ Setup the ScrollArea widget """
 
-        palette = self.palette()
-        palette.setColor(QtGui.QPalette.Background, QtGui.QColor(50, 50, 50))
-        self.setPalette(palette)
+        self.setStyleSheet(self.STYLESHEET)
 
         self._layout.setSpacing(1)
         try: 
@@ -1598,7 +1671,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         if not blueprints:
             return
 
-        self._buildWidgets()
+        self._buildProcessWidgets()
         self._clear(self._layout, safe=not _DEV)  # In dev mode, we always delete the widget to simplify the test.
 
         if blueprints:
@@ -1609,7 +1682,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
     def _showNoProcess(self):
         """ Switch the widget display to show only a text. """
 
-        if self._processes:
+        if self._processWidgets:
             return
 
         self._clear(self._layout, safe=False)
@@ -1627,14 +1700,14 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         Also update the general progress bar to display execution progress.
         """
 
-        if not self._processes:
+        if not self._processWidgets:
             return
 
         self._stopRequested = False
         self.feedbackMessageRequested.emit('Check in progress... Press [ESCAPE] to interrupt.', 1)
 
-        progressbarLen = 100.0/len(self._processes)
-        for i, process in self._processes.items():
+        progressbarLen = 100.0/len(self._processWidgets)
+        for i, process in enumerate(self._processWidgets):
             if self._stopRequested:
                 break
 
@@ -1653,14 +1726,14 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         Also update the general progress bar to display execution progress.
         """
 
-        if not self._processes:
+        if not self._processWidgets:
             return
 
         self._stopRequested = False
         self.feedbackMessageRequested.emit('Fix in progress... Press [ESCAPE] to interrupt.', 1)
 
-        progressbarLen = 100.0/len(self._processes)
-        for i, process in self._processes.items():
+        progressbarLen = 100.0/len(self._processWidgets)
+        for i, process in enumerate(self._processWidgets):
             if self._stopRequested:
                 break
 
@@ -1676,25 +1749,29 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
 
         self.progressValueReseted.emit()
 
-    def _buildWidgets(self):
+    def _buildProcessWidgets(self):
         """" Create the new widget and setup them.
 
         Build the process widgets from blueprint list and setup them (resolve links with process methods.)
         """
-        
-        self._processes = processes = self._register.getData('widget') or {}
-        if processes and not _DEV:
-            return  # There is already widgets in the register
+        self._processWidgets = processWidgets = []
+        if not _DEV:
+            # I use `list.extend` because if I don't and assign it to the result of `filter`, processWidgets
+            # will point to another list than the instance attribute and the result will become unpredictable.
+            processWidgets.extend(filter(None, (blueprint.getData('widget') for blueprint in self._blueprints)))
+            if processWidgets:
+                return  # There is already widgets in the register
 
         uiLinkResolveBlueprints = []
-        for index, blueprint in enumerate(self._blueprints):
+        for blueprint in self._blueprints:
             if not blueprint._inUi:
                 uiLinkResolveBlueprints.append(None)
                 continue  # Skip this check if it does not be run in ui
-            processes[index] = processWidget = ProcessWidget(blueprint, parent=self)
-            uiLinkResolveBlueprints.append(processWidget)
+            processWidget = ProcessWidget(blueprint, parent=self)
 
-        self._register.setData('widget', processes)
+            processWidgets.append(processWidget)
+            uiLinkResolveBlueprints.append(processWidget)
+            blueprint.setData('widget', processWidget)
 
         for blueprint in self._blueprints:
             blueprint.resolveLinks(uiLinkResolveBlueprints, check='execCheck', fix='execFix', tool='execTool')
@@ -1712,14 +1789,14 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         elif mode == AtConstants.AVAILABLE_DISPLAY_MODE[2]:
             self._addWidgetsAlphabetically()
 
-        for widget in self._processes.values():
+        for widget in self._processWidgets:
             widget.leaveEvent(None)
 
     def _addWidgetsByHeader(self):
         """ Add widget in the scroll area by Blueprint order (default) """
 
-        for index in self._processes.keys():
-            self._layout.addWidget(self._processes[index])
+        for process in self._processWidgets:
+            self._layout.addWidget(process)
 
         self._layout.addStretch()
 
@@ -1728,7 +1805,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
 
         categories = []
         orderedByCategory = {}
-        for index, process in self._processes.items():
+        for process in self._processWidgets:
             category = process._blueprint.category
 
             if category not in categories:
@@ -1736,6 +1813,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
                 orderedByCategory[category] = []
             orderedByCategory[category].append(process)
 
+        #TODO: Implement or remove this
         # categories.sort()
 
         for category in categories:
@@ -1755,7 +1833,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
     def _addWidgetsAlphabetically(self):
         """ Add widget in the scroll area by Blueprint order (default) """
 
-        for process in sorted(self._processes.values(), key=lambda proc: proc._blueprint.name):
+        for process in sorted(self._processWidgets, key=lambda proc: proc._blueprint._name):
             self._layout.addWidget(process)
 
         self._layout.addStretch()
@@ -1763,19 +1841,19 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
     def checkAll(self):
         """ Check all Process Widget in the scroll area """
 
-        for process in self._processes.values():
+        for process in self._processWidgets:
             process.setChecked(True)
 
     def uncheckAll(self):
         """ Uncheck all Process Widget in the scroll area """
 
-        for process in self._processes.values():
+        for process in self._processWidgets:
             process.setChecked(False)
 
     def defaultAll(self):
         """ Reset all Process Widget check state in the scroll area """
 
-        for process in self._processes.values():
+        for process in self._processWidgets:
             process.setChecked(process._blueprint.isEnabled)
 
     def filterProcesses(self, text):
@@ -1789,8 +1867,8 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
 
         #WIP: This function should not receive text but SearchPattern
         if not text:
-            self.feedbackMessageRequested.emit('{} processes available'.format(len(self._processes)), 3000)
-            for process in self._processes.values():
+            self.feedbackMessageRequested.emit('{} processes available'.format(len(self._processWidgets)), 3000)
+            for process in self._processWidgets:
                 process.setVisible(True)
             return
 
@@ -1798,13 +1876,13 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         hashTags = set(searchPattern.iterHashTags(text))
 
         allowedStatus = set(filter(None, (AtCore.Status.getStatusByName(statusName) for statusName in hashTags)))
-        for process in self._processes.values():
+        for process in self._processWidgets:
             process.setVisible(all((
                 bool(searchPattern.search(process._blueprint._name)),  # Check if the str match the user regular expression.
                 process._status in allowedStatus if hashTags else True  # Check if the process are of a filtered Status.
             )))
 
-        visibleProcesses = [process for process in self._processes.values() if process.isVisible()]
+        visibleProcesses = [process for process in self._processWidgets if process.isVisible()]
         if not visibleProcesses:
             self.feedbackMessageRequested.emit('No process match pattern "{}"'.format(searchPattern.pattern), 3000)
         else:
@@ -1913,14 +1991,8 @@ def getParentApplication():
 
     parentWindow = QtCore.QCoreApplication.instance()
 
-    #FIXME: WTF ?? 
     if not parentWindow:
-        standaloneApplication = QtWidgets.QApplication(sys.argv)
-        win = Athena()
-        win.show()
-
-        sys.exit(standaloneApplication.exec_())
-        return standaloneApplication  #TODO: Find what is needed here to launch the tool in standalone mode
+        return None
 
     topWidgets = QtCore.QCoreApplication.instance().topLevelWidgets()
     topWidgets = [widget for widget in topWidgets
@@ -1931,9 +2003,6 @@ def getParentApplication():
     # If there is no top widget, the tool is standalone
     if not topWidgets:
         return None
-
-    # if len(topWidgets) == 1:
-    #     return topWidgets[0]
 
     for widget in topWidgets:
         if widget.objectName().lower() == 'mainwindow' or widget.windowIconText():
@@ -1969,7 +2038,7 @@ def getSizeFromScreen():
 if __name__ == '__main__':
     
     app = QtWidgets.QApplication(sys.argv)
-    win = Athena(dev=True)
+    win = AthenaWidget(dev=True)
     win.show()
 
     sys.exit(app.exec_())

@@ -1,16 +1,19 @@
 import re
+import os
 import numbers
 import six
 import inspect
 import enum
+import pkgutil
 
 import cProfile
 import pstats
 
 from pprint import pprint
 
-from Athena import AtUtils
 from Athena import AtConstants
+from Athena import AtExceptions
+from Athena import AtUtils
 
 
 class ProcessDataDescriptor(object):
@@ -58,8 +61,8 @@ class Process(object):
 
     DATA = {}
 
-    _name_ = str()
-    _doc_ = str()
+    _name_ = ''
+    _doc_ = ''
 
     # __metaclass__ = ProcessMeta
 
@@ -181,7 +184,6 @@ class Process(object):
     def setFeedback(self, thread, toDisplay, toSelect, selectMethod=None):
         self.__feedbacks[thread] = Feedback(thread, toDisplay, toSelect, selectMethod=selectMethod)
 
-
     def addTrace(self, trace):
         raise NotImplementedError
 
@@ -275,16 +277,8 @@ class Register(object):
         
         self._software = AtUtils.getSoftware()
 
-        self._data = {}
-        self._packages = {}
-        self._contexts = []
-
-        self._blueprints = []
-
-        self._context = None
-        self._env = None
-
-        self._setup()
+        self._packages = AtUtils.getPackages()
+        self._contexts = self._getContexts()
 
     def __repr__(self):
         """Return the representation of the Register"""
@@ -328,15 +322,7 @@ class Register(object):
         return all((
             self._software == other._software,
             self._contexts == other._contexts,
-            self._blueprints == other._blueprints,
-            self._context == other._context,
-            self._env == other._env
         ))
-
-    @property
-    def data(self):
-        """Get the Register internal data"""
-        return self._data
 
     @property
     def software(self):
@@ -344,41 +330,16 @@ class Register(object):
         return self._software
 
     @property
-    def blueprints(self):
-        """Get all Register blueprints"""
-        return self._blueprints
-
-    @property
     def contexts(self):
         """Get all Register contexts"""
         return self._contexts
 
-    @property
-    def context(self):
-        """Get the current context the register are pointing on"""
-        return self._context
+    def contextByName(self, name):
+        for context in self._contexts:
+            if context._name == name:
+                return context
 
-    @property
-    def env(self):
-        """Get the current env the register are pointing on"""
-        return self._env
-
-    def reload(self):
-        """Reload data for the register instance.
-        
-        When this method is called it will clean data and recreate them.
-
-        Parameters
-        -----------
-        verbose: bool
-            Define if the function should log informations about its process. (default: False)
-        """
-
-        self._data = {}
-
-        self._setup()
-
-    def _setup(self):
+    def _getContexts(self):
         """Setup data for the register instance.
         
         Setup the register internal data from packages.
@@ -391,251 +352,124 @@ class Register(object):
             Define if the function should log informations about its process. (default: False)
         """
 
-        self._packages = packages = AtUtils.getPackages()
+        contexts = []
 
-        for context, packageData in packages.items():
-            envs = AtUtils.getEnvs(packageData['import'], software=self._software)
-            
-            self._data[context] = packageData
-            self._data[context]['envs'] = envs
+        for contextImport in self._packages:
+            contexts.append(Context(contextImport, self._software))
 
-        self._contexts = packages.keys()
-    
-    def getEnvs(self, context):
-        """Return envs stored in the given context.
-        
-        This will return list of envs from the given context. Especially useful to feed a widget.
+        return tuple(contexts)  # This is not meant to be edited.
 
-        Parameters
-        -----------
-        context: str
-            Context from which return stored envs.
-        
-        Returns
-        -------
-        list
-            List of envs for the given context.
-        """
+    def reload(self):
+        self._packages = AtUtils.getPackages()
+        self._contexts = self._getContexts()
 
-        # First, get the context in data
-        contextData = self._data.get(context, None)
-        if contextData is None:
-            return []
 
-        # Then, get the env in the precedently queried context dict.
-        envData = contextData.get('envs', None)
-        if envData is None:
-            return []
+class Context(object):
 
-        return envData.keys()
+    def __init__(self, importPath, software):
+        self._import = importPath
+        self._software = software
 
-    def getBlueprints(self, context, env, forceReload=False):
-        """Get the blueprint object for the given context and env.
-        
-        Try to retrieve the blueprints for the specified env in the specified context. If there is already a blueprints,
-        don't re-instanciate them if forceReload is `False`.
+        self._name = importPath.rpartition('.')[2]
 
-        Parameters
-        ----------
-        context: str
-            Context from which retrieve the blueprint in the given env.
-        env: str
-            Env from which get the blueprint object.
-        forceReload: bool
-            Define if the function should reload its blueprints or not.
+    @AtUtils.lazyProperty
+    def module(self):
+        return AtUtils.importFromStr(self._import)
 
-        Returns
-        -------
-        dict
-            Dict containing all blueprint objects for the given context env.
-        """
+    @AtUtils.lazyProperty
+    def loader(self):
+        return pkgutil.get_loader(self._import)
 
-        self._blueprints = []
-        self._context = context
+    @AtUtils.lazyProperty
+    def file(self):
+        #FIXME: There is a big difference here from python 2.x to python 3.x
+        try:
+            return self.loader.filename
+        except AttributeError:
+            return os.path.dirname(self.loader.path)
 
-        # Get the dict for the specified context in self._data
-        contextData = self._data.get(context, None)
-        if contextData is None:
+    @AtUtils.lazyProperty
+    def iconPath(self):
+        return os.path.join(self.file, 'icon.png')
+
+    @AtUtils.lazyProperty
+    def envs(self):
+        envs = []
+        for envImport in AtUtils.getEnvs(self._import, software=self._software):
+            envs.append(Env(envImport, self._software))
+
+        return envs
+
+    def envByName(self, name):
+        for env in self.envs:
+            if env._name == name:
+                return env
+
+    def getAvailableSoftwares(self):
+        raise NotImplementedError
+
+class Env(object):
+
+    def __init__(self, importPath, software):
+        self._import = importPath
+        self._software = software
+
+        self._name = importPath.rpartition('.')[2]
+
+        self._data = {}
+
+    @AtUtils.lazyProperty
+    def module(self):
+        return AtUtils.importFromStr(self._import)
+
+    @AtUtils.lazyProperty
+    def loader(self):
+        return pkgutil.get_loader(self._import)
+
+    @AtUtils.lazyProperty
+    def file(self):
+        #FIXME: There is a big difference here from python 2.x to python 3.x
+        try:
+            return os.path.dirname(self.loader.filename)
+        except AttributeError:
+            return os.path.dirname(self.loader.path)
+
+    @AtUtils.lazyProperty    
+    def iconPath(self):
+        return os.path.join(self.file, '{0}.png'.format(self._name))
+
+    @AtUtils.lazyProperty  #FIXME: Due to the lazy property the old way to reload in runtime is no more available.
+    def blueprints(self):
+
+        # Load the env module from the string path stored.
+        envModule = self.module
+        if envModule is None:   #TODO: Need feedback, can't import module.
             return {}
-
-        # Get the dict for all envs in self._data[context]
-        envsData = contextData.get('envs', None)
-        if envsData is None:
-            return {}
-
-        # Get the dict for the specified env in self._data[context]['envs']
-        envData = envsData.get(env, None)
-        if envData is None:
-            return {}
-        self._env = env
-
-        # Get the blueprint in self._data[context]['envs'][env]. If one is found, return it.  #TODO: It seems there is an error
-        blueprints = envData.get('blueprints', None)
-        if blueprints is not None and not forceReload: # If not forceReload, return the existing blueprints. #FIXME: self._blueprints is empty outside dev
-            return blueprints['objects']
-
-        # Get the env module to retrieve the blueprint from.
-        envModule = envData.get('module', None)
-        if envModule is None:
-            
-            # Get the string path to the env package in self._data[context]['envs'][env]['import']
-            envStr = envData.get('import', None)
-            if envStr is None:
-                return {}
-
-            # Load the env module from the string path stored.
-            envModule = AtUtils.importFromStr('{}.{}'.format(envStr, envData), verbose=self.verbose)
-            if envModule is None:
-                return {}
-            envData['module'] = envModule
-
-        # If force reload are enabled, this will reload the env module.
-        if forceReload:
-            AtUtils.reloadModule(envModule)
 
         # Try to access the `blueprints` variable in the env module
         header = getattr(envModule, 'header', ())
         blueprints = getattr(envModule, 'register', {})
-        ID.flush()
+        ID.flush()  #TODO: Remove this crap
 
         # Generate a blueprint object for each process retrieved in the `blueprint` variable of the env module.
-        self._blueprints = blueprintObjects = []
+        blueprintObjects = []
         for id_ in header:
-            blueprintObjects.append(Blueprint(blueprint=blueprints[id_], verbose=self.verbose))
+            blueprintObjects.append(Blueprint(blueprint=blueprints[id_]))
         
         # Default resolve for blueprints if available in batch, call the `resolveLinks` method from blueprints to change the targets functions.
         batchLinkResolveBlueprints = [blueprintObject if blueprintObject._inBatch else None for blueprintObject in blueprintObjects]
         for blueprint in blueprintObjects:
             blueprint.resolveLinks(batchLinkResolveBlueprints, check=Link.CHECK, fix=Link.FIX, tool=Link.TOOL)
 
-        # Finally store blueprints in the env dict in data.
-        envData['blueprints'] = {
-                'data': blueprints,
-                'objects': blueprintObjects,
-        }
+        return blueprintObjects
 
-        return self._blueprints
-
-    def reloadBlueprintsModules(self):
-        """Reload the Blueprints's source modules to reload the Processes in it
-        
-        Should better be called in dev mode to simplify devellopment and test of a new Process.
-
-        Returns
-        -------
-        list(module, ...)
-            Lis of all reloaded modules.
-        """
-
-        modules = list(set((blueprint._module for blueprint in self._blueprints)))
-        for module in modules:
-            AtUtils.reloadModule(module)
-
-        return modules
-
-    def getData(self, data):
-        """Get a specific data in the register current context and env.
-
-        Parameters
-        ----------
-        data: str
-            The key of the data to get in the register at [self._context]['envs'][self._env]
-
-        Returns
-        -------
-        type or NoneType
-            Data queried if exist, else NoneType.
-        """
-
-        if not self._context or not self._env:
-            return None
-
-        return self._data[self._context]['envs'][self._env].get(data, None)
+    def blueprintByName(self, name):
+        for blueprint in self.blueprints:
+            if blueprint._process._name_ == name or blueprint._name == name:
+                return blueprint
 
     def setData(self, key, data):
-        """Set the current data at the given key of the register's current env dict.
-
-        Parameters
-        ----------
-        key: type (immutable)
-            The key for which to add the data in the register current context and env dict.
-        data: type
-            The data to store in the register's current env dict of the current context.
-
-        Returns
-        -------
-        Register
-            Return the instance of the object to make object fluent.
-        """
-
-        self._data[self._context]['envs'][self._env][key] = data
-
-        return self
-
-    def setVerbose(self, value):
-        """Set the Verbose state.
-
-        Parameters
-        ----------
-        value: bool
-            True or False to enable or disable the verbose
-
-        Returns
-        -------
-        Register
-            Return the instance of the object to make object fluent.
-        """
-
-        self.verbose = bool(value)
-
-        return self
-
-    def getContextIcon(self, context):
-        """Get the icon for the given context
-
-        Returns
-        -------
-        str
-            Return the icon of the queried context.
-        """
-
-        return self._packages.get(context, {}).get('icon', None)
-
-    def getEnvIcon(self, context, env):
-        """Get the icon for the given env of the given context
-
-        Returns
-        -------
-        str
-            Return the icon of the queried env of the given context.
-        """
-
-        return self._data[context]['envs'][env].get('icon', None)
-
-
-class Context(object):
-
-    def __init__(self, name):
-        self._name = name
-        
-        self._envs
-
-        self._iconPath
-        self._import
-        self._module
-        self._path
-
-
-class Env(object):
-
-    def __init__(self, name):
-        self._name = name
-
-        self._iconPath
-        self._import
-        self._module
-        self._parameters
-        self._path
+        self._data[key] = data
 
 
 class Blueprint(object):
@@ -685,6 +519,9 @@ class Blueprint(object):
         self._inBatch = True
 
         self._isNonBlocking = False
+
+        # -- 
+        self._data = {}
 
         # setupCore will automatically retrieve the method needed to execute the process. 
         # And also the base variable necessary to define if theses methods are available.
@@ -963,7 +800,7 @@ class Blueprint(object):
         if statusOverrides is None:
             return
 
-        for threadName, overridesDict in statusOverrides.iteritems():
+        for threadName, overridesDict in statusOverrides.items():
             if not hasattr(self._process, threadName):
                 raise RuntimeError('Process {0} have not thread named {1}.'.format(self._process._name_, threadName))
             thread = getattr(self._process, threadName)
@@ -1020,64 +857,11 @@ class Blueprint(object):
 
         return docstring.format(**docFormat)
 
-    # DEPRECATED 1.0.0
-    # def _filterResult(self, result):
-    #     """ Filter the data ouputed by a process to keep only these that is not empty.
+    def getData(self, key, default=None):
+        return self._data.get(key, default)
 
-    #     Parameters
-    #     ----------
-    #     result: tuple
-    #         Tuple containing tuple with a str for title and list of errors.
-    #         > tuple(tuple(str, list, `list`, `str`), ...)
-
-    #     Returns
-    #     -------
-    #     list
-    #         List of feedbacks that contain at least one error to log or only a title. 
-    #     """
-
-    #     filtered_result = []
-    #     for feedback in result:
-    #         toDisplay = feedback['toDisplay']
-    #         if not toDisplay:
-    #             continue
-    #         elif feedback['toDisplay'] is Ellipsis:
-    #             feedback['toDisplay'] = []
-    #             feedback['toSelect'] = []
-
-    #         filtered_result.append(feedback)
-
-    #     return filtered_result
-
-    # def _filterFeedbacks(self):
-    #     """ Filter the data outputed by a process to keep only these that is not empty.
-
-    #     Parameters
-    #     ----------
-    #     result: tuple
-    #         Tuple containing tuple with a str for title and list of errors.
-    #         > tuple(tuple(str, list, `list`, `str`), ...)
-
-    #     Returns
-    #     -------
-    #     list
-    #         List of feedbacks that contain at least one error to log or only a title. 
-    #     """
-
-    #     globalFailStatus = self.getLowestFailStatus()
-    #     globalSuccessStatus = self.getLowestSuccessStatus()
-
-    #     feedbackContainer = []
-    #     for thread, feedback in self._process.feedback.items():
-    #         if feedback:
-    #             feedbackContainer.append(feedback)
-    #             if thread._failStatus._priority >= globalFailStatus._priority:
-    #                 globalFailStatus = thread._failStatus
-    #         else:
-    #             if thread._successStatus._priority <= globalSuccessStatus._priority:
-    #                 globalSuccessStatus = thread._successStatus
-
-    #     return feedbackContainer, globalFailStatus if feedbackContainer else globalSuccessStatus
+    def setData(self, key, value):
+        self._data[key] = value
 
     def _filterFeedbacks(self):
         """ Filter the data outputed by a process to keep only these that is not empty.
@@ -1098,7 +882,7 @@ class Blueprint(object):
         globalStatus = Status._DEFAULT
 
         feedbackContainer = []
-        for processThreadName, processThread in self._process.threads.iteritems():
+        for processThreadName, processThread in self._process.threads.items():
 
             # Get the feedaback, if there is no feedback for this thread it is clean.
             feedback = self._process.getFeedback(processThread)
@@ -1251,7 +1035,7 @@ class Status(object):
         def __init__(self, *args, **kwargs):
             super(self.__class__, self).__init__(*args, **kwargs)
 
-    _DEFAULT =  BuiltInStatus('Default', (65, 65, 65))
+    _DEFAULT =  BuiltInStatus('Default', (60, 60, 60))
 
     # INFO =  FeedbackStatus('Info', (200, 200, 200))
     # PAUSED = FeedbackStatus('Paused', (255, 186, 0))
@@ -1350,9 +1134,9 @@ class Thread(object):
 
     def __init__(self, title, failStatus=Status.ERROR, successStatus=Status.SUCCESS, documentation=None):
         if not isinstance(failStatus, Status.FailStatus):
-            raise RuntimeError('`{}` is not a valid fail status.'.format(failStatus._name))
+            raise AtExceptions.StatusException('`{}` is not a valid fail status.'.format(failStatus._name))
         if not isinstance(successStatus, Status.SuccessStatus):
-            raise RuntimeError('`{}` is not a valid success status.'.format(successStatus._name))
+            raise AtExceptions.StatusException('`{}` is not a valid success status.'.format(successStatus._name))
 
         self._title = title
 
@@ -1476,101 +1260,16 @@ class Profiler(object):
         with open('stats.stat', 'r') as statStream:
             self._stats = statStream.read()
 
-# sys.path.append('C:\Python27\Lib\site-packages')
+# Setup
+'''
+import sys
+sys.path.append('C:\Python27\Lib\site-packages')
+sys.path.append('C:\Workspace\Athena\src')
 
-# def merge_env(env_pck):
+import Athena.ressources.Athena_example.ContextExample
 
-#     to_merge = []
+import Athena
+Athena._reload(__name__)
 
-#     for first_env in env_pck:
-#         for second_env in env_pck:
-#             if first_env == second_env:
-#                 continue
-#             if first_env[-1][0] == second_env[-1][0]:
-#                 index = None
-#                 for i in range(len(to_merge)):
-#                     if to_merge[i] != first_env[-1][0]:
-#                         continue
-#                     index = i
-#                 if index is None:
-#                     to_merge.append((first_env[-1][0], []))
-#                     index = -1
-#                 to_merge[index][-1].append(second_env[-1][-1])
-
-#     return to_merge
-
-
-
-
-""" #TODO: This snippet of code is now out of date
-def start(env, register, verbose=False):
-
-    processes = load_moduleStr('{}.{}'.format(env, register))
-    print Register.extract()
-
-    for process in []:
-
-        # separate module hierarchy from class to instance (check)
-        moduleStr, class_str = process[0].rsplit('.', 1)
-
-        module = load_moduleStr(moduleStr, verbose=verbose)  #module etant une instance comme cmds le serait. il devrait avoir une plus grande portee.
-
-        if module is None:
-            raise RuntimeError('Module {0} can not be found'.format(moduleStr))
-
-        # get the process class <class 'gpdev.tools.Athena.testCheck.TestForSanityCheck'>
-        processClass = getattr(module, class_str, None) #TODO Enhance this process
-        if processClass is None:
-            raise RuntimeError('Process class {0} can not be found in module {1}'.format(class_str, moduleStr))
-
-        if processClass: #create an instance.
-            __process = processClass()  # instance de la class <gpdev.tools.Athena.testCheck.TestForSanityCheck object at 0x000001A4C70B4A90>
-
-        if not __process:
-            raise RuntimeError('Unable to instance ' + processClass) #custom erreurs
-        
-        # get list of methods that have been overrided (implemented.)
-        overrided_method = AtUtils.getOverriddedMethods(processClass, Process)
-
-        print overrided_method
-
-        # if '__init__' in overrided_method:
-        #     print '__init__ for ' + str(processClass)
-        #     __process.__init__()
-
-        # if AtConstants.CHECK in overrided_method:
-        #     print 'check for ' + str(processClass)
-        #     __process.check()
-
-        # if AtConstants.FIX in overrided_method:
-        #     print 'fix for ' + str(processClass)
-        #     __process.fix()
-
-
-# This function is the entry point to load all environmnet
-def main(envs=None, verbose=False):
-
-    if not envs:
-        envs = AtUtils.get_envs()  # Get all already imported envs
-        if verbose: print('{} envs have been succesfully retrieved ({})'.format(len(envs), ', '.join(envs)))
-
-    # Keys will be the envs resolved path and the values will be associated env_pck
-    env_pck = {}
-    for env in envs:
-        env_pck[env] = AtUtils.rez_env(env)
-
-    if not env_pck:
-        AtConstants.LOGGER.info('No envs available') 
-        return
-
-    process_registers = env_pck.get(env[0], None)
-    if process_registers is None:
-        raise ImportError('No register {0} have been resolved, you should import them'.format(register))
-
-    process_importer = process_registers.get(register, None)
-    if process_importer is None:
-        raise ImportError('No register {0} found in env {1}'.format(register, env))  # An env is a package containing register that is like modules.
-
-    start(env, register)
-
-"""
+Athena.launch(dev=True)
+'''

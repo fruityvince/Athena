@@ -10,20 +10,18 @@
 import sys
 
 from Athena.AtGui import AtUi
-from Athena import AtCore, AtUtils, AtConstants, AtTests
+from Athena import AtCore, AtUtils, AtConstants, AtExceptions, AtTests
 
 __version__ = AtConstants.VERSION
 
-def launch(context=None, env=None, displayMode='Blueprint', dev=False, verbose=False):
+def launch(context=None, env=None, displayMode='Blueprint', dev=False, verbose=False, parent=None):
     """ Main function to launch the tool. """
 
-    # if dev:
-    #     forceReload()
-
-    window = AtUi.Athena(context=context, env=env, displayMode=displayMode, dev=dev, verbose=verbose)
+    window = AtUi.AthenaWidget(context=context, env=env, displayMode=displayMode, dev=dev, verbose=verbose, parent=AtUi.getParentApplication())
     window.show()
 
     return window
+
 
 def batch(context, env, dev=False, verbose=False):
     """ Used to run blueprintes without any AtUi """
@@ -106,7 +104,7 @@ def _reload(main='__main__', verbose=False):
     # ---------- Get which modules must be deleted and which must be reloaded ---------- #
     toDelete = {}
     toReimport = {}
-    atPackages = {package['import'] for package in AtUtils.getPackages().values()}
+    atPackages = set(AtUtils.getPackages())
     for moduleName, module in sys.modules.items():
         # Skip all modules in sys.modules if they are not related to Athena and skip Athena main module that will be reloaded after.
         if _programName not in moduleName or moduleName == __name__:
@@ -157,5 +155,14 @@ def _reload(main='__main__', verbose=False):
 
 
 if __name__ == '__main__':
-    _reload(__name__)
-    sys.modules[__name__].launch(dev=True)
+    import Athena.ressources.Athena_example.ContextExample
+
+    #FIXME: Seems to break the tool. instance checks will not trigger.
+    # _reload(__name__)
+
+    application = AtUi.QtWidgets.QApplication(sys.argv)
+
+    launch(displayMode='Category', dev=True, parent=application)
+
+    application.exec_()
+    # window = sys.modules[__name__].AtUi.Athena(displayMode='Category', dev=True, verbose=False)

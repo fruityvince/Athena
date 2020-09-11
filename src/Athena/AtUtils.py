@@ -35,7 +35,6 @@ def getEnvs(package, software='standalone', verbose=False):
         The key is the env and the value is a dict containing the imported module object for the env and its str path.
     """
 
-    availableEnvs = {}
     packagePath, athenaPackage = package.rsplit('.', 1)
 
     # {path}.{program}_{prod}.{software}.env
@@ -49,19 +48,21 @@ def getEnvs(package, software='standalone', verbose=False):
     if not envPackage:
         return
 
-    for importer, name, _ in pkgutil.iter_modules(envPackage.__path__):
-        env = '{0}.{1}'.format(envPackageStr, name)
-        path = importer.path
-        icon = os.path.join(path, '{0}.png'.format(name))
-        envModule = importFromStr(env)
+    availableEnvs = []
+    for _, name, _ in pkgutil.iter_modules(envPackage.__path__):
+        # env = '{0}.{1}'.format(envPackageStr, name)
+        # path = importer.path
+        # icon = os.path.join(path, '{0}.png'.format(name))
+        # envModule = importFromStr(env)
 
-        availableEnvs[name] = {
-            'import': env,
-            'module': envModule,
-            'path': path,
-            'icon': icon if os.path.isfile(icon) else None,
-            'parameters': getattr(envModule, 'parameters', {})
-        }
+        # availableEnvs[name] = {
+        #     'import': env,
+        #     'module': envModule,
+        #     'path': path,
+        #     'icon': icon if os.path.isfile(icon) else None,
+        #     'parameters': getattr(envModule, 'parameters', {})
+        # }
+        availableEnvs.append('{0}.{1}'.format(envPackageStr, name))
 
     return availableEnvs
 
@@ -84,7 +85,7 @@ def getPackages(verbose=False):
         The key is the prod and the value is a dict containing the module object and its str path.
     """
 
-    packages = {}
+    contexts = []
 
     rules = []
     # Append the rules list with all rules used to get package that end with {PROGRAM_NAME}_?_???
@@ -108,23 +109,12 @@ def getPackages(verbose=False):
         groups = search.groups()
         if not loadedPackage.endswith('.'.join(groups)):
             continue
-            
-        module = importFromStr(loadedPackage)
-
-        path = os.path.dirname(module.__file__)
-        icon = os.path.join(path, 'icon.png')
         
-        packages[groups[-1]] = {
-            'path': path,
-            'import': loadedPackage,
-            'module': module,
-            'icon': icon if os.path.isfile(icon) else None
-        }
+        contexts.append(loadedPackage)
 
-        if verbose:
-            log('Package "{}" found'.format(loadedPackage), 'info')
+        LOGGER.debug('Package "{}" found'.format(loadedPackage))
 
-    return packages
+    return tuple(contexts)
 
 
 def importProcessPath(processStrPath):
@@ -258,7 +248,7 @@ def reloadModule(module):
     else:
         raise ImportError('Module {0} not in sys.modules'.format(moduleName))
 
-    return importFromStr(moduleName)
+    sys.modules[moduleName] = importFromStr(moduleName)
 
 
 def importPathStrExist(moduleStr):
@@ -327,47 +317,16 @@ def camelCaseSplit(toSplit):
 
     return ' '.join(splitString)
 
-'''
-def log(message, level='info'):
-    """
-    0 = info
-    1 = warning
-    2 = error
-    3 = critical
-    4 = exception
-    5 = log
-    6 = biglog
-    """
 
-    if level not in ('info', 'warning', 'error', 'critical', 'exception'):
-        return
+class lazyProperty(object):
+    def __init__(self, fget):
+        self.fget = fget
 
-    elif level == 'info':
-        LOGGER.info(str(message))
-    elif level == 'warning':
-        LOGGER.warning(str(message))
-    elif level == 'error':
-        LOGGER.error(str(message))
-    elif level == 'critical':
-        LOGGER.critical(str(message))
-    elif level == 'exception':
-        LOGGER.exception(str(message))
-        
+    def __get__(self, instance, cls):
+        value = self.fget(instance)
+        setattr(instance, self.fget.__name__, value)
+        return value
 
-def logHeader(message):
-
-    message = str(message)
-
-    lenForDisplay = ((len(message)+5)/2)
-    block = '=-'*(lenForDisplay if 50 < lenForDisplay else 50) + '='
-    box = '# {0} #'
-
-    print('\n{0}\n{1}\n{2}'.format(
-        box.format(block),
-        box.format(message.center(len(block))),
-        box.format(block)
-    ))
-'''
 
 class RessourcesManager(object):
     #TODO: Document this class
