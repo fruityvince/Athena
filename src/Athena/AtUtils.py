@@ -117,7 +117,7 @@ def getPackages(verbose=False):
     return tuple(contexts)
 
 
-def importProcessPath(processStrPath):
+def importProcessModuleFromPath(processStrPath):
 
     moduleStrPath, _, processName = processStrPath.rpartition('.')
     module = importFromStr(moduleStrPath)
@@ -125,7 +125,7 @@ def importProcessPath(processStrPath):
     if not hasattr(module, processName):
         raise ImportError('Module {0} have no class named {1}'.format(module.__name__, processName))
     
-    return module, getattr(module, processName)
+    return module
 
 
 def getSoftware(default='standalone'):
@@ -256,7 +256,7 @@ def importPathStrExist(moduleStr):
 
 
 # could be only with instance of class. (get inheritance and return dict with each one as key and list of overriden as value)
-def getOverriddedMethods(instance, cls):
+def getOverridedMethods(instance, cls):
     """Detect all methods that have been overridden from a subclass of a class
 
     Parameters

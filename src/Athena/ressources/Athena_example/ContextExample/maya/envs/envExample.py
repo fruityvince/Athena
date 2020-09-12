@@ -1,5 +1,4 @@
 from Athena.AtCore import Tag, Link, ID, Status
-
 header = \
 (
     ID.NoConstructionHistory,
@@ -7,7 +6,8 @@ header = \
     ID.NoTris,
     ID.TestCheck,
     ID.NoStaticAnimKeys,
-    ID.Test,
+    ID.CleanCompoundConnections,
+    ID.NamespacesAreIncremental,
 )
 
 register = \
@@ -43,11 +43,6 @@ register = \
             'category': 'Model Sanity',
         },
 
-    ID.Test:  # Second NoTris check to test if the wrapp of the class attribute is an issue. It should not.
-        {
-            'process': 'Athena.ressources.Athena_example.ContextExample.maya.processes.noTris.NoTris',
-            'category': 'Model Sanity',
-        }, 
 
     ID.TestCheck:
         {
@@ -59,6 +54,18 @@ register = \
         {
             'process': 'Athena.ressources.Athena_example.ContextExample.maya.processes.noStaticAnimKeys.NoStaticAnimKeys',
             'category': 'Animation',
+        },
+
+    ID.CleanCompoundConnections:  # Second NoTris check to test if the wrapp of the class attribute is an issue. It should not.
+        {
+            'process': 'Athena.ressources.Athena_example.ContextExample.maya.processes.cleanCompoundConnections.CleanCompoundConnections',
+            'category': 'Dependency Graph Sanity',
+        },
+
+    ID.NamespacesAreIncremental:
+        {
+            'process': 'Athena.ressources.Athena_example.ContextExample.maya.processes.namespacesAreIncremental.NamespacesAreIncremental',
+            'category': 'Scene Sanity',
         },
 }
 

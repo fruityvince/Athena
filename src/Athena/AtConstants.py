@@ -4,6 +4,8 @@ VERSION = '2.0.0-wip'
 
 AVAILABLE_SOFTWARE = ('maya', 'katana', 'houdini', 'nuke', 'mari', 'ue4editor', 'blender')
 
+STANDALONE = 'standalone'
+
 CHECK = 'check'
 
 FIX = 'fix'
@@ -11,6 +13,8 @@ FIX = 'fix'
 TOOL = 'tool'
 
 AVAILABLE_DISPLAY_MODE = ('Header', 'Category', 'Alphabetically')
+
+DEFAULT_CATEGORY = 'Other'
 
 ENV_TEMPLATE = '{package}.{athenaPackage}.{software}.envs'
 
@@ -25,7 +29,7 @@ BLUEPRINT_TEMPLATE = \
 	'tags': 0,  # Integer - AtCore.Tag
 	'links': (('', '', '')),  # Tuple of tuple that contains three str, the target ID, the source method and the target method.
 	'statusOverrides': {'': {}},  # Dict that contains name of the threads to overrides and a dict with new status indexed by status type.
-	'options': {}  # Dict with str key and values.
+	'settings': {}  # Dict with str key and values.
 }
 
 SETTINGS_TEMPLATE = \

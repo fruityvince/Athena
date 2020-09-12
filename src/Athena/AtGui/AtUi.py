@@ -100,7 +100,7 @@ class AthenaWidget(QtWidgets.QWidget):
     }
     """
 
-    def __init__(self, context=None, env=None, displayMode=AtConstants.AVAILABLE_DISPLAY_MODE[0], dev=False, verbose=False, parent=None):
+    def __init__(self, register, context=None, env=None, displayMode=AtConstants.AVAILABLE_DISPLAY_MODE[0], dev=False, parent=None):
         """ Initialise the Athena tool by loading ressources, getting register and all other data for ui.
 
         Parameters
@@ -119,16 +119,13 @@ class AthenaWidget(QtWidgets.QWidget):
 
         super(AthenaWidget, self).__init__(parent)
 
-        self.setWindowFlags(QtCore.Qt.Window)
-
-        self._register = AtCore.Register(verbose=verbose)
+        self._register = register
         self._resourcesManager = AtUtils.RessourcesManager(__file__, backPath='..{0}ressources'.format(os.sep), key=AtConstants.PROGRAM_NAME)
         self._defaultDisplayMode = displayMode if displayMode in AtConstants.AVAILABLE_DISPLAY_MODE else AtConstants.AVAILABLE_DISPLAY_MODE[0]
         
         global _DEV
         _DEV = dev
 
-        self._verbose = verbose
         self._configuration = {'context': context, 'env': env}
         
         # Build, Setup and connect the ui
@@ -148,6 +145,8 @@ class AthenaWidget(QtWidgets.QWidget):
 
         # This will prevent the window to leave foreground on OSX
         self.setProperty("saveWindowPref", True)
+        self.setWindowFlags(QtCore.Qt.Window)
+        self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
 
     def _buildUi(self):
         """ Create all widgets and layout for the ui """
@@ -369,7 +368,6 @@ class AthenaWidget(QtWidgets.QWidget):
         self._setupContext()
 
         self.reload()
-        self.statusBar().showMessage('Successfully reload blueprint\'s modules for env `{0}`.'.format(self._envs_QComboBox.currentText()), 5000)
 
     def _setupContext(self):
         """ Switch the current context used by the tool. """
@@ -383,7 +381,7 @@ class AthenaWidget(QtWidgets.QWidget):
             contexts_QComboBox.clear()
 
             for context in register._contexts:
-                contexts_QComboBox.addItem(QtGui.QIcon(context.iconPath), context._name, context)
+                contexts_QComboBox.addItem(QtGui.QIcon(context.icon), context._name, context)
 
             # Fallback 1: If there is a value in the QComboBox before, switch on the same value for the new context if exists
             currentIndex = contexts_QComboBox.findText(currentContext)
@@ -433,7 +431,7 @@ class AthenaWidget(QtWidgets.QWidget):
             envs_QComboBox.clear()
 
             for env in context.envs:
-                envs_QComboBox.addItem(QtGui.QIcon(env.iconPath), env._name, env)
+                envs_QComboBox.addItem(QtGui.QIcon(env.icon), env._name, env)
 
             # Fallback 1: If there is a value in the QComboBox before, switch on the same value for the new context if exists
             currentIndex = envs_QComboBox.findText(currentEnv)
@@ -687,13 +685,13 @@ class ProcessWidget(QtWidgets.QWidget):
         
         self._blueprint = blueprint
         self._settings = blueprint._settings
-        self._name = blueprint._name
-        self._docstring = blueprint._docstring
-        self._isEnabled = blueprint._isEnabled
-        self._isCheckable = blueprint._isCheckable
-        self._isFixable = blueprint._isFixable
-        self._hasTool = blueprint._hasTool
-        self._isNonBlocking = blueprint._isNonBlocking
+        self._name = blueprint.niceName
+        self._docstring = blueprint.docstring
+        self._isEnabled = blueprint.isEnabled
+        self._isCheckable = blueprint.isCheckable
+        self._isFixable = blueprint.isFixable
+        self._hasTool = blueprint.hasTool
+        self._isNonBlocking = blueprint.isNonBlocking
 
         self._status = AtCore.Status._DEFAULT
         self._isOpened = False
@@ -1713,7 +1711,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
 
             self.progressValueChanged.emit(progressbarLen*i)
 
-            if process._blueprint._isCheckable and process.isChecked() and (process.isVisible() or not self._parent._canClose):
+            if process._isCheckable and process.isChecked() and (process.isVisible() or not self._parent._canClose):
                 self.ensureWidgetVisible(process)
                 process.execCheck()
 
@@ -1764,7 +1762,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
 
         uiLinkResolveBlueprints = []
         for blueprint in self._blueprints:
-            if not blueprint._inUi:
+            if not blueprint.inUi:
                 uiLinkResolveBlueprints.append(None)
                 continue  # Skip this check if it does not be run in ui
             processWidget = ProcessWidget(blueprint, parent=self)
@@ -1806,7 +1804,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         categories = []
         orderedByCategory = {}
         for process in self._processWidgets:
-            category = process._blueprint.category
+            category = process._blueprint._category
 
             if category not in categories:
                 categories.append(category)
@@ -1833,7 +1831,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
     def _addWidgetsAlphabetically(self):
         """ Add widget in the scroll area by Blueprint order (default) """
 
-        for process in sorted(self._processWidgets, key=lambda proc: proc._blueprint._name):
+        for process in sorted(self._processWidgets, key=lambda proc: proc._name):
             self._layout.addWidget(process)
 
         self._layout.addStretch()
@@ -1878,7 +1876,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         allowedStatus = set(filter(None, (AtCore.Status.getStatusByName(statusName) for statusName in hashTags)))
         for process in self._processWidgets:
             process.setVisible(all((
-                bool(searchPattern.search(process._blueprint._name)),  # Check if the str match the user regular expression.
+                bool(searchPattern.search(process._name)),  # Check if the str match the user regular expression.
                 process._status in allowedStatus if hashTags else True  # Check if the process are of a filtered Status.
             )))
 

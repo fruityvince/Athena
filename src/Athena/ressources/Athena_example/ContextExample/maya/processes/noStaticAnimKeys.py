@@ -49,6 +49,8 @@ class NoStaticAnimKeys(AtCore.Process):
 
         self.isChecked = False
 
+        self.At_KeyLimit = 190
+
     def check(self, deep=True, exclude=()):
         """ Iterate through all anim curves and their keys to find those who are static and should be deleted/removed
 

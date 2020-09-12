@@ -14,22 +14,22 @@ from Athena import AtCore, AtUtils, AtConstants, AtExceptions, AtTests
 
 __version__ = AtConstants.VERSION
 
-def launch(context=None, env=None, displayMode='Blueprint', dev=False, verbose=False, parent=None):
+def launch(register, context=None, env=None, displayMode='Blueprint', dev=False, parent=None):
     """ Main function to launch the tool. """
 
-    window = AtUi.AthenaWidget(context=context, env=env, displayMode=displayMode, dev=dev, verbose=verbose, parent=AtUi.getParentApplication())
+    window = AtUi.AthenaWidget(register=register, context=context, env=env, displayMode=displayMode, dev=dev, parent=AtUi.getParentApplication())
     window.show()
 
     return window
 
 
-def batch(context, env, dev=False, verbose=False):
+def batch(context, env, dev=False):
     """ Used to run blueprintes without any AtUi """
 
     # if dev:
     #     forceReload()
 
-    register = AtCore.Register(verbose=verbose)
+    register = AtCore.Register.initFromImportedPackage()
     blueprints = register.getBlueprints(context, env)
 
     traceback = []
@@ -69,7 +69,7 @@ def batch(context, env, dev=False, verbose=False):
                 log += '\n\t\t- {0}:'.format(each['title'])
                 log += '\n\t\t\t{0}'.format(each['toDisplay'])
         
-        if verbose: print(log)
+        print(log)
         return False
     return True
 
@@ -162,7 +162,7 @@ if __name__ == '__main__':
 
     application = AtUi.QtWidgets.QApplication(sys.argv)
 
-    launch(displayMode='Category', dev=True, parent=application)
+    launch(AtCore.Register.initFromSystem(), displayMode='Category', dev=True, parent=application)
 
     application.exec_()
     # window = sys.modules[__name__].AtUi.Athena(displayMode='Category', dev=True, verbose=False)

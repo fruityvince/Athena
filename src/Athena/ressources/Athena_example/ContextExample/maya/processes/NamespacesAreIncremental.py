@@ -3,6 +3,8 @@ from Athena import AtCore
 from maya import cmds
 from maya.api import OpenMaya
 
+import re
+
 
 __all__ = \
     (
@@ -24,7 +26,11 @@ class NamespacesAreIncremental(AtCore.Process):
     """
 
     ROOT_NAMESPACE = ':'
-    TAIL_DIGITS_REGEX = re.compile('^(?P<name>.*?)(?P<number>\d+)$')
+
+    TAIL_DIGITS_PATTERN = r'^(?P<name>.*?)(?P<number>\d+)$'
+    TAIL_DIGITS_REGEX = re.compile(TAIL_DIGITS_PATTERN)
+
+    NON_INCREMENTAL_NAMESPACE = AtCore.Thread(title='These namespace does not have a logical increment')
 
     def __init__(self):
         """ Init instance attributes """
@@ -35,7 +41,7 @@ class NamespacesAreIncremental(AtCore.Process):
         self.isChecked = False
 
         # Delete all empty namespaces to clean the scene.
-        namespaceLib.deleteAllEmptyNamespaces()
+        # NOT IMPLEMENTED
 
     def check(self, fromParents=None, maxPadding=None):
         """ Check all namespaces or namespaces given by user to find theses who don't follow a logical increment.
@@ -52,7 +58,7 @@ class NamespacesAreIncremental(AtCore.Process):
         if fromParents:
             nsListFromParents = []
             for parent in fromParents:
-                nsListFromParents.extend([location.rpartition(':')[0] for location in mc.listRelatives(parent, children=True) or []])
+                nsListFromParents.extend([node.rpartition(':')[0] for node in mc.listRelatives(parent, children=True) or []])
             namespaces = list(set(OpenMaya.MNamespace.makeNamepathAbsolute(inputNS) for inputNS in nsListFromParents))
         else:
             namespaces = sorted(
@@ -98,21 +104,24 @@ class NamespacesAreIncremental(AtCore.Process):
 
             # There is now a coherent increment to compare with our ordered digit list
             for i, digits in enumerate(digitsList):
-                version = i + 1  # Artist don't count from 0
+                version = i + 1  # Artists don't count from 0
                 paddingLen = maxPadding or len(digitsList[0])  # If there is no limit, the digit count of the first namespace is used.
                 if version != int(digits) or len(digits) != paddingLen:
                     oldNS = ['{0}{1}'.format(nameWithoutDigits, padding) for padding in digitsList]
                     nonIncrementalNS[nameWithoutDigits] = {
                         'old': oldNS,
-                        'new': ['{0}{1}'.format(nameWithoutDigits, str(i + 1).zfill(paddingLen)) for i in xrange(len(digitsList))]
+                        'new': ['{0}{1}'.format(nameWithoutDigits, str(i + 1).zfill(paddingLen)) for i in range(len(digitsList))]
                     }
                     nonIncrementalNSFeedback.extend(oldNS)
                     break
 
-        self.logFeedback(
-            titles=('These namespace does not have a logical increment',),
-            elements=(nonIncrementalNSFeedback,)
-        )
+        if nonIncrementalNSFeedback:
+            self.NON_INCREMENTAL_NAMESPACE.setFail()
+            self.setFeedback(
+                self.NON_INCREMENTAL_NAMESPACE,
+                toDisplay=nonIncrementalNSFeedback,
+                toSelect=nonIncrementalNSFeedback
+            )
         self.nonIncrementalNS = nonIncrementalNS
 
         self.isChecked = True

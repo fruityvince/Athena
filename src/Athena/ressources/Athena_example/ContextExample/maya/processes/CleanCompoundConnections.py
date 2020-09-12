@@ -14,14 +14,11 @@ class CleanCompoundConnections(AtCore.Process):
     """Will iterate through all plugs of all nodes in the scene and remove the connections from parent of compound plugs
     that have at least one child with an input connection.
 
-    ..notes:
+    .. notes:
         This process is meant to remove useless connections in the Dependency Graph and reduce dirty propagation.
     """
 
-    def __init__(self):
-        """Init process instance attributes"""
-        self.toFix = []
-        self.data = {}
+    DIRTY_COMPOUND_NODES = AtCore.Thread(title='All these nodes have dirty compound attribute\'s connections')
 
     def check(self):
         """Iterate through all Dependency Nodes of the maya scene and check for any of their compound plugs if they have
@@ -30,9 +27,9 @@ class CleanCompoundConnections(AtCore.Process):
         """
 
         # Reset the process feedback and attributes.
-        self.clearFeedback()
+        self.reset()
         self.toFix = []
-        self.data = {}
+        self._data = {}
 
         # Get and iter through all valid dependency nodes.
         iterator = OpenMaya.MItDependencyNodes(OpenMaya.MFn.kInvalid)
@@ -40,7 +37,7 @@ class CleanCompoundConnections(AtCore.Process):
 
             # Retrieve Dependency Node function set and iter through all plugs.
             nodeFn = OpenMaya.MFnDependencyNode(iterator.thisNode())
-            for i in xrange(nodeFn.attributeCount()):
+            for i in range(nodeFn.attributeCount()):
 
                 # Get the plug from the index and continue if its not a compound parent or if it is not connected.
                 iPlug = nodeFn.findPlug(nodeFn.attribute(i), True)
@@ -54,30 +51,34 @@ class CleanCompoundConnections(AtCore.Process):
 
                 # Iter on the list to get the connected children.
                 connectedChildren = []
-                for j in xrange(iPlug.numChildren()):
+                for j in range(iPlug.numChildren()):
                     jPlug = iPlug.child(j)
                     if jPlug.connectedTo(True, False):
                         connectedChildren.append(jPlug)
                 if not connectedChildren:
                     continue
 
-                # Store the check data using the plug name, also used for display.
+                # Store the check _data using the plug name, also used for display.
                 plugName = iPlug.name()
                 self.toFix.append(plugName)
-                self.data[plugName] = {'parent': iPlug, 'source': iInputPlug, 'connectedChildren': connectedChildren}
+                self._data[plugName] = {'parent': iPlug, 'source': iInputPlug, 'connectedChildren': connectedChildren}
 
             iterator.next()
 
         # Add the feedback and set the process to True.
-        self.addFeedback("All these nodes have dirty compound attribute's connections",
-                         toDisplay=self.toFix,
-                         documentation='WIP doc')
+        if self.toFix:
+            self.DIRTY_COMPOUND_NODES.setFail()
+            self.setFeedback(
+                self.DIRTY_COMPOUND_NODES,
+                toDisplay=self.toFix,
+                toSelect=self.toFix,
+            )
         self.isChecked = True
 
     def fix(self):
         """Iter through all error to remove parent input connections and move them to the right children plugs."""
 
-        # If the fix is runt without check, launch check to retrieve data.
+        # If the fix is runt without check, launch check to retrieve _data.
         if not self.isChecked:
             self.check()
 
@@ -86,14 +87,14 @@ class CleanCompoundConnections(AtCore.Process):
         childCompoundModifier = OpenMaya.MDGModifier()
 
         for parent in self.toFix:
-            # Retrieve data from the check
-            parentCompoundPlug = self.data[parent]['parent']
-            parentSourcePlug = self.data[parent]['source']
-            connectedChildren = self.data[parent]['connectedChildren']
+            # Retrieve _data from the check
+            parentCompoundPlug = self._data[parent]['parent']
+            parentSourcePlug = self._data[parent]['source']
+            connectedChildren = self._data[parent]['connectedChildren']
 
             # Add the parent disconnection in the DG Modifier and iter through all of its children.
             parentCompoundModifier.disconnect(parentSourcePlug, parentCompoundPlug)
-            for i in xrange(parentCompoundPlug.numChildren()):
+            for i in range(parentCompoundPlug.numChildren()):
                 childPlug = parentCompoundPlug.child(i)
                 if childPlug in connectedChildren:
                     continue
