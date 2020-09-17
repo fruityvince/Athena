@@ -2,6 +2,7 @@ import re
 import os
 import numbers
 import six
+import time
 import inspect
 import enum
 import pkgutil
@@ -134,6 +135,9 @@ class Process(object):
     def tool(self, *args, **kwargs):
         raise NotImplementedError
 
+    def setProgressbar(self, progressBar):
+        self.__progressbar = progressBar
+
     def setProgressValue(self, value, text=None):
         """Set the progress value of the process progressBar if exist.
         
@@ -148,6 +152,10 @@ class Process(object):
         if self.__progressbar is None:
             return
 
+        #WATCHME: `numbers.Number` is an abstract base class that define operations progressively, the first call to
+        # this method will define it for the first time, this is why the profiler can detect some more calls for the
+        # first call of the first process to be run. --> We talk about insignifiant time but the displayed data will
+        # be a bit different.  see: https://docs.python.org/2/library/numbers.html
         assert isinstance(value, numbers.Number), 'Argument `value` is not numeric'
         
         self.__progressbar.setValue(float(value))
@@ -189,6 +197,12 @@ class Process(object):
 
     def breakpoint(self):
         raise NotImplementedError
+
+
+class ProcessStackTrace(object):
+
+    def __init__(self):
+        pass
 
 
 # Automatic Decorator
@@ -275,7 +289,9 @@ class Register(object):
         """
         
         self._software = AtUtils.getSoftware()
-        self._contexts = []
+        self.__blueprints = []
+
+        self.modulesForReload = []
 
     def __repr__(self):
         """Return the representation of the Register"""
@@ -286,7 +302,7 @@ class Register(object):
         )
 
     def __bool__(self):
-        return bool(self._contexts)
+        return bool(self._blueprint)
 
     __nonzero__ = __bool__
 
@@ -316,126 +332,76 @@ class Register(object):
             self._contexts == other._contexts,
         ))
 
-    @classmethod
-    def initFromPackageList(cls, packageList):
-        instance = cls()
-        instance._contexts = packageList
-        return instance
+    #FIXME: The import system is not easy to use, find a better way to use them.
+    #TODO: Find a way to implement this feature and clean the import process.
+    # def loadBlueprintFromPythonStr(self, pythonCode, moduleName):
+    #     module = AtUtils.moduleFromStr(pythonCode, name=moduleName)
+    #     self.loadBlueprintFromModule(Blueprint(module))
 
-    @classmethod
-    def initFromSystem(cls):
-        instance = cls()
-        for contextImportStr in AtUtils.getPackages():
-            instance._contexts.append(ContextFromImportStr(contextImportStr, instance._software))
-        return instance
+    def loadBlueprintsFromPackageStr(self, package):
+        self.loadBlueprintsFromPackage(AtUtils.importFromStr('{package}.blueprints'.format(package=package)))
 
-    @classmethod
-    def initFromJson(cls, jsonFile):
-        instance = cls()
-        pass
+    def loadBlueprintsFromPackage(self, package):
+        for modulePath in AtUtils.iterBlueprintsPath(package):
+            self.loadBlueprintFromModulePath(modulePath)
+
+    def loadBlueprintFromModuleStr(self, moduleStr):
+        self.loadBlueprintFromModule(AtUtils.importFromStr(moduleStr))
+
+    def loadBlueprintFromModulePath(self, modulePath):
+        module = AtUtils.importFromStr(AtUtils.pythonImportPathFromPath(modulePath))
+        self.loadBlueprintFromModule(module)
+
+    def loadBlueprintFromModule(self, module):
+        self.__blueprints.append(Blueprint(module))
+
+    def clear(self):
+        del self.__blueprints[:]
 
     @property
     def software(self):
         """Get the Register software"""
         return self._software
 
-    @AtUtils.lazyProperty
-    def contexts(self):
+    @property
+    def blueprints(self):
         """Get all Register contexts"""
-        return tuple(self._contexts)
+        return tuple(self.__blueprints)
 
-    def contextByName(self, name):
-        for context in self._contexts:
-            if context._name == name:
-                return context
+    def blueprintByName(self, name):
+        for blueprint in self._blueprints:
+            if blueprint._name == name:
+                return blueprint
 
     def reload(self):
+        blueprints = self.__blueprints[:]
+        self.clear()
+
+        for blueprint in blueprints:
+            for processor in blueprint.processors:
+                AtUtils.reloadModule(processor.module)
+            self.loadBlueprintFromModule(AtUtils.reloadModule(blueprint._module))
+
+
+class Importer(object):
+
+    def __init__(self):
         pass
 
 
-class AbstractContext(object):
+class Blueprint(object):
 
-    def __init__(self):
-        
-        self._name = self.__class__.__name__
+    def __init__(self, module):
+        super(Blueprint, self).__init__()
 
-    def __repr__(self):
-        return '<{0} `{1}` at {2}>'.format(self.__class__.__name__, self._name, hex(id(self)))
+        self._module = module
 
-    def __bool__(self):
-        return bool(self.envs)
-
-    __nonzero__ = __bool__
-
-    @property
-    def name(self):
-        return self._name
-
-    @AtUtils.lazyProperty
-    def icon(self):
-        raise NotImplementedError('`{0}` subclass must implement an `icon` lazyProperty.'.format(self.__class__.__name__))
-
-    @AtUtils.lazyProperty
-    def envs(self):
-        raise NotImplementedError('`{0}` subclass must implement an `envs` lazyProperty.'.format(self.__class__.__name__))
-
-    def envByName(self, name):
-        for env in self.envs:
-            if env._name == name:
-                return env
-
-class ContextFromImportStr(AbstractContext):
-
-    def __init__(self, importPath, software=AtConstants.STANDALONE):
-        super(ContextFromImportStr, self).__init__()
-
-        self._import = importPath
-        self._software = software
-
-        self._name = importPath.rpartition('.')[2]
-    
-    @AtUtils.lazyProperty
-    def module(self):
-        return AtUtils.importFromStr(self._import)
-
-    @AtUtils.lazyProperty
-    def loader(self):
-        return pkgutil.get_loader(self._import)
-
-    @AtUtils.lazyProperty
-    def file(self):
-        #FIXME: There is a big difference here from python 2.x to python 3.x
-        try:
-            return self.loader.filename
-        except AttributeError:
-            return os.path.dirname(self.loader.path)
-
-    @AtUtils.lazyProperty
-    def icon(self):
-        return os.path.join(self.file, 'icon.png')
-
-    @AtUtils.lazyProperty
-    def envs(self):
-        envs = []
-        for envImport in AtUtils.getEnvs(self._import, software=self._software):
-            envs.append(EnvFromImportStr(envImport, self._software))
-
-        return envs
-
-    @AtUtils.lazyProperty
-    def availableSoftwares(self):
-        return tuple(software for software in os.listdir(self.file) if software in AtConstants.AVAILABLE_SOFTWARE)
-
-
-class AbstractEnv(object):
-
-    def __init__(self):
-        self._name = self.__class__.__name__
+        self._name = os.path.splitext(os.path.basename(module.__file__))[0] or module.__name__
 
         self._data = {}
 
     def __bool__(self):
-        return bool(self.blueprints)
+        return bool(self.processors)
 
     __nonzero__ = __bool__
 
@@ -443,80 +409,51 @@ class AbstractEnv(object):
     def name(self):
         return self._name
 
-    @AtUtils.lazyProperty
-    def icon(self):
-        raise NotImplementedError('`{0}` subclass must implement an `icon` lazyProperty.'.format(self.__class__.__name__))
-
-    @AtUtils.lazyProperty
-    def blueprints(self):
-        raise NotImplementedError('`{0}` subclass must implement a `blueprints` lazyProperty.'.format(self.__class__.__name__))
-
-    def blueprintByName(self, name):
-        for blueprint in self.blueprints:
-            if blueprint.name == name:
-                return blueprint
-
-    def setData(self, key, data):
-        self._data[key] = data
-
-
-class EnvFromImportStr(AbstractEnv):
-
-    def __init__(self, importPath, software=AtConstants.STANDALONE):
-        super(EnvFromImportStr, self).__init__()
-
-        self._import = importPath
-        self._software = software
-
-        self._name = importPath.rpartition('.')[2]
-
-    @AtUtils.lazyProperty
+    @property
     def module(self):
-        return AtUtils.importFromStr(self._import)
-
-    @AtUtils.lazyProperty
-    def loader(self):
-        return pkgutil.get_loader(self._import)
+        return self._module
 
     @AtUtils.lazyProperty
     def file(self):
-        #FIXME: There is a big difference here from python 2.x to python 3.x
-        try:
-            return os.path.dirname(self.loader.filename)
-        except AttributeError:
-            return os.path.dirname(self.loader.path)
+        return os.path.dirname(self._module.__file__)
 
     @AtUtils.lazyProperty    
     def icon(self):
         return os.path.join(self.file, '{0}.png'.format(self._name))
 
     @AtUtils.lazyProperty  #FIXME: Due to the lazy property the old way to reload in runtime is no more available.
-    def blueprints(self):
+    def processors(self):
 
         # Load the env module from the string path stored.
-        envModule = self.module
+        envModule = self._module
         if envModule is None:   #TODO: Need feedback, can't import module.
             return {}
 
         # Try to access the `blueprints` variable in the env module
         header = getattr(envModule, 'header', ())
-        blueprints = getattr(envModule, 'register', {})
+        descriptions = getattr(envModule, 'register', {})
         ID.flush()  #TODO: Remove this crap
 
         # Generate a blueprint object for each process retrieved in the `blueprint` variable of the env module.
-        blueprintObjects = []
-        for id_ in header:
-            blueprintObjects.append(Blueprint(**blueprints[id_]))
+        processorObjects = [Processor(**descriptions[id_]) for id_ in header]
         
-        # Default resolve for blueprints if available in batch, call the `resolveLinks` method from blueprints to change the targets functions.
-        batchLinkResolveBlueprints = [blueprintObject if blueprintObject.inBatch else None for blueprintObject in blueprintObjects]
-        for blueprint in blueprintObjects:
+        # Default resolve for descriptions if available in batch, call the `resolveLinks` method from descriptions to change the targets functions.
+        batchLinkResolveBlueprints = [processorObject if processorObject.inBatch else None for processorObject in processorObjects]
+        for blueprint in processorObjects:
             blueprint.resolveLinks(batchLinkResolveBlueprints, check=Link.CHECK, fix=Link.FIX, tool=Link.TOOL)
 
-        return blueprintObjects
+        return processorObjects
+
+    def processorByName(self, name):
+        for processor in self.processors:
+            if processor.name == name:
+                return processor
+
+    def setData(self, key, data):
+        self._data[key] = data
 
 
-class Blueprint(object):
+class Processor(object):
     """This object will manage a single process instance to be used through an ui.
 
     The blueprint will init all informations it need to wrap a process like the methods that have been overrided, 
@@ -555,6 +492,7 @@ class Blueprint(object):
 
         # -- Declare a blueprint internal data, these data are directly retrieved from blueprint's non built-in keys.
         self._data = dict(**kwargs)
+        self._processProfile = _ProcessProfile()
 
         # -- We setup the tags because this process is really fast and does not require to be lazy.
         # This also give access to more data without the need to build the process instance.
@@ -644,7 +582,7 @@ class Blueprint(object):
     def getLowestSuccessStatus(self):
         return next(iter(sorted((thread._successStatus for thread in self._threads.values()), key=lambda x: x._priority)), None)
         
-    def check(self, links=True):
+    def check(self, links=True, doProfiling=False):
         """This is a wrapper for the process check that will automatically execute it with the right parameters.
 
         Parameters
@@ -664,14 +602,18 @@ class Blueprint(object):
             return None, None
         
         args, kwargs = self.getArguments(AtConstants.CHECK)
-        returnValue = self.process.check(*args, **kwargs)  #TODO: Not used !!
+
+        if doProfiling:
+            returnValue = self._processProfile.profileMethod(self.process.check, *args, **kwargs)
+        else:
+            returnValue = self.process.check(*args, **kwargs)  #TODO: Not used !!
 
         if links:
             self.runLinks(AtConstants.CHECK)
         
         return self._filterFeedbacks()
 
-    def fix(self, links=True):
+    def fix(self, links=True, doProfiling=False):
         """This is a wrapper for the process fix that will automatically execute it with the right parameters.
         
         Parameters
@@ -689,14 +631,18 @@ class Blueprint(object):
             return None, None
 
         args, kwargs = self.getArguments(AtConstants.FIX)
-        returnValue = self.process.fix(*args, **kwargs)
+
+        if doProfiling:
+            returnValue = self._processProfile.profileMethod(self.process.fix, *args, **kwargs)
+        else:
+            returnValue = self.process.fix(*args, **kwargs)
 
         if links:
             self.runLinks(AtConstants.FIX)
 
         return self._filterFeedbacks()
 
-    def tool(self, links=True):
+    def tool(self, links=True, doProfiling=False):
         """This is a wrapper for the process tool that will automatically execute it with the right parameters.
 
         Parameters
@@ -714,12 +660,16 @@ class Blueprint(object):
             return None
 
         args, kwargs = self.getArguments(AtConstants.TOOL)
-        result = self.process.tool(*args, **kwargs)
+
+        if doProfiling:
+            returnValue = self._processProfile.profileMethod(self.process.tool, *args, **kwargs)
+        else:
+            returnValue = self.process.tool(*args, **kwargs)
 
         if links:
             self.runLinks(AtConstants.TOOL)
 
-        return result
+        return returnValue
 
     def runLinks(self, which):
 
@@ -871,7 +821,7 @@ class Blueprint(object):
             QProgressBar object to connect to the process to display check and fix progression.
         """
 
-        self.process._progressbar = progressbar
+        self.process.setProgressbar(progressbar)
 
     def _createDocstring(self):
         """Generate the Blueprint doc from Process docstring and data in the `_docFormat_` variable.
@@ -965,6 +915,8 @@ class Tag(object):
     DEPENDANT: str
         A dependent process need links to be run through another process.
     """
+
+    NO_TAG          = 0
 
     DISABLED        = 1
 
@@ -1084,7 +1036,7 @@ class Status(object):
 
     _EXCEPTION = BuiltInStatus('Exception', (110, 110, 110))
 
-    def __new__(cls, type, *args, **kwargs):
+    def __new__(cls, *args, **kwargs):
         raise RuntimeError('Can\'t create new instance of type `{0}`.'.format(cls.__name__))
 
     @classmethod
@@ -1252,9 +1204,7 @@ class ProcessThread(Thread):
 
 class Event(object):
 
-    def __init__(self, name):
-        super(Event, self).__init__()
-        self.name = name
+    def __init__(self):
         self.callbacks = []
 
     def __call__(self):
@@ -1263,8 +1213,8 @@ class Event(object):
 
     def register(self, callback):
         if not callable(callback):
-            LOGGER.warning(
-                'Event "{0}" failed to register callback: Object "{1}" is not callable'.format(self.name, callback)
+            AtUtils.LOGGER.warning(
+                'Event "{0}" failed to register callback: Object "{1}" is not callable.'.format(self.name, callback)
             )
             return False
 
@@ -1275,25 +1225,108 @@ class Event(object):
         pass
 
 
-class Profiler(object):
+class Callback(object):
+    """ Warps a callable object to preserve its arguments and keyword arguments
+    """
 
-    def __init__(self, callable):
-        self._profiler = cProfile.Profile()
+    def __init__(self, callableObject, *args, **kwargs):
+        self.callable = callableObject
+        self.args = args
+        self.kwargs = kwargs
 
-        self._callable = callable
+    def __call__(self):
+        return self.callable(*self.args, **self.kwargs)
 
-        self._stats = ''
+class EventSystem(object):
 
-    def __enter__(self):
-        self._profiler.runcall(self._callable)
+    RegisterCreated = Event()
 
-        # Create a 
+    def __new__(cls, *args, **kwargs):
+        raise RuntimeError('Can\'t create new instance of type `{0}`.'.format(cls.__name__))
+
+    @classmethod
+    def addEventCallback(cls, eventName, callbackFunction, *args, **kwargs):
+        assert callable(callbackFunction), '`callbackFunction` must be passed a callable argument.'
+
+        if not hasattr(cls, eventName):
+            raise KeyError('Event `{0}` does not exists.'.format(eventName))
+
+        callback = Callback(callbackFunction, *args, **kwargs)
+        getattr(cls, eventName).register(callback)
+
+        return callback
+
+
+class _ProcessProfile(object):
+
+    # Match integers, floats (comma or dot) and slash in case there is a separation for primitive calls.
+    DIGIT_PATTERN = r'([0-9,.\/]+)'
+    DIGIT_REGEX = re.compile(DIGIT_PATTERN)
+
+    CATEGORIES = ('ncalls', 'tottime', 'percall', 'cumtime', 'percall', 'filename:lineno(function)')
+
+    def __init__(self):
+        self._profiles = {} 
+
+    def get(self, key, default=None):
+        return self._profiles.get(key, default)
+
+    def _getCallDataList(self, callData):
+        dataList = []
+        for call in callData:
+            callData = []
+
+            filteredData = filter(lambda x: x, call.strip().split(' '))
+            if not filteredData:
+                continue
+            callData.extend(filteredData[0:5])
+            callData.append(' '.join(filteredData[5:len(filteredData)]))
+
+            dataList.append(tuple(callData))
+
+        return dataList
+
+    def profileMethod(self, method, *args, **kwargs):
+        assert callable(method), '`method` must be passed a callable argument.'
+
+        profile = cProfile.Profile()
+
+        exception = None
+        try:
+            returnValue = profile.runcall(method, *args, **kwargs)
+        except Exception as exception:
+            pass
+
         with open('stats.stat', 'w') as statStream:
             stats = pstats.Stats(profile, stream=statStream)
+            stats.sort_stats('cumulative')  # cumulative will use the `cumtime` to order stats, seems the most relevant.
             stats.print_stats()
         
         with open('stats.stat', 'r') as statStream:
-            self._stats = statStream.read()
+            statsStr = statStream.read()
+
+        split = statsStr.split('\n')
+        methodProfile = {
+            'calls': self._getCallDataList(split[5:-1]),
+            'rawStats': statsStr,
+        }
+
+        # Take care of possible primitive calls in the summary for `ncalls`.
+        summary = self.DIGIT_REGEX.findall(split[0])
+        methodProfile['tottime'] = summary[-1]
+        if len(summary) == 3:
+            methodProfile['ncalls'] = '{0}/{1}'.format(summary[0], summary[1])
+        else:
+            methodProfile['ncalls'] = summary[0]
+
+        self._profiles[method.__name__] = methodProfile
+
+        if exception is not None:
+            raise exception
+
+        return returnValue
+
+        
 
 # Setup
 '''

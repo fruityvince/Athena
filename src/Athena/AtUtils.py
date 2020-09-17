@@ -5,14 +5,22 @@ import pkgutil
 import logging
 import importlib
 
-from types import FunctionType
+import types
+
+try:
+    reload  # Python 2.7
+except NameError:
+    try:
+        from importlib import reload  # Python 3.4+
+    except ImportError:
+        from imp import reload  # Python 3.0 - 3.3
 
 from Athena import AtConstants
 
 LOGGER = logging.getLogger(AtConstants.PROGRAM_NAME)
 
 
-def getEnvs(package, software='standalone', verbose=False):
+def iterBlueprintsPath(package, software='standalone', verbose=False):
     """Retrieve available envs from imported packages.
 
     Retrieve the currently imported packages path that match the pattern to works with this tool: {program}_{prod}
@@ -35,39 +43,12 @@ def getEnvs(package, software='standalone', verbose=False):
         The key is the env and the value is a dict containing the imported module object for the env and its str path.
     """
 
-    packagePath, athenaPackage = package.rsplit('.', 1)
-
-    # {path}.{program}_{prod}.{software}.env
-    envPackageStr = AtConstants.ENV_TEMPLATE.format(
-        package=packagePath, 
-        athenaPackage=athenaPackage,
-        software=software
-    )
-
-    envPackage = importFromStr(envPackageStr)
-    if not envPackage:
-        return
-
-    availableEnvs = []
-    for _, name, _ in pkgutil.iter_modules(envPackage.__path__):
-        # env = '{0}.{1}'.format(envPackageStr, name)
-        # path = importer.path
-        # icon = os.path.join(path, '{0}.png'.format(name))
-        # envModule = importFromStr(env)
-
-        # availableEnvs[name] = {
-        #     'import': env,
-        #     'module': envModule,
-        #     'path': path,
-        #     'icon': icon if os.path.isfile(icon) else None,
-        #     'parameters': getattr(envModule, 'parameters', {})
-        # }
-        availableEnvs.append('{0}.{1}'.format(envPackageStr, name))
-
-    return availableEnvs
+    packagePath = os.path.dirname(package.__file__)
+    for loader, moduleName, _ in pkgutil.iter_modules(package.__path__):
+        yield os.path.join(packagePath, '{}.py'.format(moduleName))
 
 
-def getPackages(verbose=False):
+def getPackages():
     """Get all packages that match the tool convention pattern.
 
     Loop through all modules in sys.modules.keys() and package those who match the tool convention pattern
@@ -85,7 +66,7 @@ def getPackages(verbose=False):
         The key is the prod and the value is a dict containing the module object and its str path.
     """
 
-    contexts = []
+    packages = []
 
     rules = []
     # Append the rules list with all rules used to get package that end with {PROGRAM_NAME}_?_???
@@ -110,11 +91,11 @@ def getPackages(verbose=False):
         if not loadedPackage.endswith('.'.join(groups)):
             continue
         
-        contexts.append(loadedPackage)
+        packages.append(loadedPackage)
 
         LOGGER.debug('Package "{}" found'.format(loadedPackage))
 
-    return tuple(contexts)
+    return tuple(packages)
 
 
 def importProcessModuleFromPath(processStrPath):
@@ -209,6 +190,31 @@ def _formatSoftware(softwarePath):
     return ''
 
 
+def pythonImportPathFromPath(path):
+    
+    if not os.path.exists(path):
+        raise IOError('Path `{}` does not exists.'.format(path))
+
+    path_, file_ = None, None    
+    if os.path.isfile(path):
+        path_, _, file = path.rpartition(os.sep)
+    elif os.path.isdir(path):
+        path_, file = path, None
+        
+    
+    incrementalPath = ''
+    pythonImportPath = ''
+    for folder in path_.split(os.sep):
+        incrementalPath += '{}{}'.format(os.sep if incrementalPath else '', folder)
+        if '__init__.py' in os.listdir(incrementalPath):
+            pythonImportPath += '{}{}'.format('.' if pythonImportPath else '', folder)
+    
+    if file:
+        pythonImportPath += '.' + os.path.splitext(file)[0]
+    
+    return pythonImportPath
+
+
 def importFromStr(moduleStr, verbose=False):
     """Try to import the module from the given string
 
@@ -234,21 +240,33 @@ def importFromStr(moduleStr, verbose=False):
     except ImportError as exception:
         if verbose: 
             LOGGER.exception('load {} failed'.format(moduleStr))
+
         raise ImportError(exception) # AtEnvImportError - exception.args
 
     return module
 
 
 def reloadModule(module):
+    return reload(module)
 
-    moduleName = module.__name__
 
-    if moduleName in sys.modules:
-        del sys.modules[moduleName]
-    else:
-        raise ImportError('Module {0} not in sys.modules'.format(moduleName))
+def moduleFromStr(pythonCode, name='DummyAthenaModule'):
+    # spec = importlib.util.spec_from_loader(name, loader=None)
 
-    sys.modules[moduleName] = importFromStr(moduleName)
+    # module = importlib.util.module_from_spec(spec)
+
+    # exec(pythonCode, module.__dict__)
+    # sys.modules[name] = module
+
+    # return module
+
+    module = types.ModuleType(name)
+    exec(pythonCode, module.__dict__)
+    sys.modules[name] = module
+
+    module.__file__ = ''
+
+    return module
 
 
 def importPathStrExist(moduleStr):
@@ -278,7 +296,7 @@ def getOverridedMethods(instance, cls):
         if isinstance(value, classmethod):
             value = callable(getattr(instance, key))
 
-        if isinstance(value, (FunctionType, classmethod)):
+        if isinstance(value, (types.FunctionType, classmethod)):
             method = getattr(cls, key, None)
             if method is not None and callable(method) is not value:
                 res[key] = value
@@ -522,19 +540,21 @@ class SearchPattern(object):
 
     MATCH_NONE = '^$'
 
-    def __init__(self, pattern=MATCH_NONE):
+    TEXT_PATTERN = r'(?!#)(^.+?)(?:(?=\s(?:#)[a-zA-Z]+)|$|\s$)'
+    TEXT_REGEX = re.compile(TEXT_PATTERN)
 
-        self._pattern = pattern
+    HASH_PATTERN = r'(?:^|\s)?#([a-zA-Z\s]+)(?:\s|$)'
+    HASH_REGEX = re.compile(HASH_PATTERN)
+
+    def __init__(self, rawPattern=MATCH_NONE):
+
+        self._rawPattern = rawPattern
+
+        self._pattern = None
         self._regex = None
         self._isValid = False
 
-        self._textPattern = r'(?!#)(^.+?)(?:(?=\s#[a-zA-Z]+)|$|\s$)'
-        self._textRegex = re.compile(self._textPattern)
-
-        self._hashPattern = r'(?:^|\s)?#([a-zA-Z]+)(?:\s|$)'
-        self._hashRegex = re.compile(self._hashPattern)
-
-        self.setPattern(pattern)
+        self.setPattern(rawPattern)
 
     @property
     def pattern(self):
@@ -549,7 +569,7 @@ class SearchPattern(object):
         return self._isValid
 
     def setPattern(self, pattern):
-        match = self._textRegex.match(pattern)
+        match = self.TEXT_REGEX.match(pattern)
         self._pattern = pattern = '.*' if not match else match.group(0)
 
         try:
@@ -559,8 +579,8 @@ class SearchPattern(object):
             self._regex = re.compile(self.MATCH_NONE)
             self._isValid = False
 
-    def iterHashTags(self, text):
-        for match in self._hashRegex.finditer(text):
+    def iterHashTags(self):
+        for match in self.HASH_REGEX.finditer(self._rawPattern):
             yield match.group(1)
 
     def search(self, text):
@@ -572,6 +592,37 @@ class SearchPattern(object):
 
 def formatTraceback(traceback):
     return '# ' + '# '.join(traceback.rstrip().splitlines(True))
+
+
+def createNewAthenaPackageHierarchy(rootDirectory):
+
+    if os.path.exists(rootDirectory):
+        raise OSError('`{}` already exists. Abort {0} package creation.'.format(AtConstants.PROGRAM_NAME))
+    os.mkdir(rootDirectory)
+
+    blueprintDirectory = os.path.join(rootDirectory, 'blueprints')
+    os.mkdir(blueprintDirectory)
+    processesDirectory = os.path.join(rootDirectory, 'processes')
+    os.mkdir(processesDirectory)
+
+    initPyFiles = (
+        os.path.join(rootDirectory, '__init__.py'),
+        os.path.join(blueprintDirectory, '__init__.py'),
+        os.path.join(processesDirectory, '__init__.py')
+        )
+    
+    header = '# Generated from {0} - Version {1}\n'.format(AtConstants.PROGRAM_NAME, AtConstants.VERSION)
+    for file in initPyFiles:
+        with open(file, 'w') as file:
+            file.write(header)
+
+    dummyProcessPath = os.path.join(processesDirectory, 'dummyProcess.py')
+    with open(dummyProcessPath, 'w') as file:
+        file.write(header + AtConstants.DUMMY_PROCESS_TEMPLATE)
+
+    dummyBlueprintPath = os.path.join(blueprintDirectory, 'dummyBlueprint.py')
+    with open(dummyBlueprintPath, 'w') as file:
+        file.write(header + AtConstants.DUMMY_BLUEPRINT_TEMPLATE)
 
 ##########  IDEAS  ##########
 """

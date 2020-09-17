@@ -16,8 +16,6 @@ AVAILABLE_DISPLAY_MODE = ('Header', 'Category', 'Alphabetically')
 
 DEFAULT_CATEGORY = 'Other'
 
-ENV_TEMPLATE = '{package}.{athenaPackage}.{software}.envs'
-
 PROGRESSBAR_FORMAT = '  %p% - {0}'
 
 # If types change, unit tests from AtTest must be updated too.
@@ -50,3 +48,88 @@ NO_DOCUMENTATION_AVAILABLE = '\nNo documentation available for this process.\n'
 
 WIKI_LINK = 'https://github.com/gpijat/Athena'
 REPORT_BUG_LINK = 'https://github.com/gpijat/Athena/issues'
+
+DUMMY_PROCESS_TEMPLATE = \
+'''
+from Athena import AtCore
+
+
+__all__ = \\
+	(
+		'DummyProcess',
+	)
+
+
+@AtCore.automatic
+class DummyProcess(AtCore.Process):
+    """Class Documentation (Will be used to document the process if _doc_ is not implemented."""
+
+    _name_ = 'DummyProcess'
+    _doc_ = \\
+    """This is a process template that must be implemented..
+
+    This documentation will be available to show to user in an UI. You may implement this sunder attribute to
+    display an user related documentation. Else class documentation will be displayed.
+    """
+
+    DUMMY_THREAD = AtCore.Thread(title='The items above are not compliant with this Process.')
+
+    def __init__(self):
+    	super(DummyProcess, self).__init__()
+    	# Implement your __init__ here !!!
+
+    def check(self):
+    	# Implement your check here !!!
+    	pass
+
+    def fix(self):
+    	# Implement your check here !!!
+    	pass
+
+    def tool(self):
+    	# Implement your check here !!!
+    	pass
+
+'''
+
+DUMMY_BLUEPRINT_TEMPLATE = \
+'''
+from Athena.AtCore import Tag, Link, ID, Status
+
+header = \\
+(
+    ID.DummyProcess,
+)
+
+register = \\
+{
+    ID.DummyProcess:
+        {
+            'process': '',
+            'category': '',
+            'arguments': 
+            	{
+            		'__init__': ([], {}),
+            		'check': ([], {}),
+            		'fix': ([], {}),
+            		'tool': ([], {}),
+            	},
+            'tags': Tag.NO_TAG,
+            'links': (('', '', '')),
+            'statusOverride':
+            	{
+            		'DUMMY_THREAD': {},
+            	},
+            'settings': {},
+        },
+}
+
+settings = \\
+{
+    'recheck': True,
+    'orderFeedbacksByPriority': False,
+    'feedbackDisplayWarning': True,
+    'feedbackDisplayWarningLimit': 100,
+    'allowRequestStop': True,
+}
+'''

@@ -14,10 +14,12 @@ from Athena import AtCore, AtUtils, AtConstants, AtExceptions, AtTests
 
 __version__ = AtConstants.VERSION
 
-def launch(register, context=None, env=None, displayMode='Blueprint', dev=False, parent=None):
+def launch(register, env=None, displayMode=AtConstants.AVAILABLE_DISPLAY_MODE[0], parent=None, _dev=False):
     """ Main function to launch the tool. """
 
-    window = AtUi.AthenaWidget(register=register, context=context, env=env, displayMode=displayMode, dev=dev, parent=AtUi.getParentApplication())
+    AtUi._DEV = _dev
+
+    window = AtUi.AthenaWidget(register=register, env=env, displayMode=displayMode, parent=AtUi.getParentApplication())
     window.show()
 
     return window
@@ -98,7 +100,6 @@ def _reload(main='__main__', verbose=False):
     # This function will clean all athena packages in sys.modules but we must keep these functions and constants 
     # available while the function is processing.
     _import = AtUtils.importFromStr
-    _reload = AtUtils.reloadModule
     _programName = AtConstants.PROGRAM_NAME
 
     # ---------- Get which modules must be deleted and which must be reloaded ---------- #
@@ -135,7 +136,8 @@ def _reload(main='__main__', verbose=False):
     # ---------- Reload current module if it is not main ---------- #
     # Reload the current module to be sure it will be up to date after. Except if the current module is '__main__'.
     if __name__ != '__main__':
-        _reload(sys.modules[__name__])
+        del sys.modules[__name__]
+        sys.modules[__name__] = _import(__name__)
 
     # ---------- Reimport all user Athena packages ---------- #
     # Last, we reimport all Athena packages to make sure the API will detect it.
@@ -155,14 +157,16 @@ def _reload(main='__main__', verbose=False):
 
 
 if __name__ == '__main__':
-    import Athena.ressources.Athena_example.ContextExample
 
     #FIXME: Seems to break the tool. instance checks will not trigger.
     # _reload(__name__)
 
     application = AtUi.QtWidgets.QApplication(sys.argv)
 
-    launch(AtCore.Register.initFromSystem(), displayMode='Category', dev=True, parent=application)
+    register = AtCore.Register()
+    register.loadBlueprintsFromPackageStr('Athena.ressources.examples.Athena_Standalone')
+
+    launch(register, displayMode='Category', dev=True, parent=application)
 
     application.exec_()
     # window = sys.modules[__name__].AtUi.Athena(displayMode='Category', dev=True, verbose=False)
