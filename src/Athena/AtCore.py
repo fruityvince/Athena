@@ -1298,24 +1298,29 @@ class _ProcessProfile(object):
         except Exception as exception:
             pass
 
-        fd, path = tempfile.mkstemp()
+        fd, tmpFile = tempfile.mkstemp()
         try:
-            with open(path, 'w') as statStream:
+            with open(tmpFile, 'w') as statStream:
                 stats = pstats.Stats(profile, stream=statStream)
                 stats.sort_stats('cumulative')  # cumulative will use the `cumtime` to order stats, seems the most relevant.
                 stats.print_stats()
             
-            with open(path, 'r') as statStream:
+            with open(tmpFile, 'r') as statStream:
                 statsStr = statStream.read()
+
         except Exception as exception:
             # If an error occur it will not be silent, but the temp file will be removed anyway.
             raise exception
         finally:
             # No matter what happen, we want to delete the file.
-            os.remove(path)
+            # It happen that the file is not closed here on Windows so we also call `os.close` to ensure it is really closed.
+            # WindowsError: [Error 32] The process cannot access the file because it is being used by another process: ...
+            os.close(fd)
+            os.remove(tmpFile)
 
         split = statsStr.split('\n')
         methodProfile = {
+            'time': time.time(),  # With this we will be able to not re-generate widget (for instance) if data have not been updated.
             'calls': self._getCallDataList(split[5:-1]),
             'rawStats': statsStr,
         }

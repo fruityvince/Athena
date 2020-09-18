@@ -16,6 +16,7 @@ from Qt import QtCore, QtGui, QtWidgets, __binding__
 
 #TODO: Remove dev imports.
 from pprint import pprint
+import time
 
 _DEV = False
 _USE_ATHENA_STYLESHEET = True  #TODO: Remove if not used.
@@ -176,7 +177,7 @@ class AthenaWidget(QtWidgets.QWidget):
         self._option_QMenu.addAction(self._defaultAll_QAction)
 
         if __binding__ in ('PySide2', 'PyQt5'):
-            self._option_QMenu.addSection('O|I Processes')
+            self._option_QMenu.addSection('Toggle Processes')
 
         self._openAll_QAction = QtWidgets.QAction(self._resourcesManager.get('bottom-arrow.png', AtConstants.PROGRAM_NAME, QtGui.QIcon), 'Open All Processes', self._option_QMenu)
         self._option_QMenu.addAction(self._openAll_QAction)
@@ -1437,7 +1438,7 @@ class ProfilerWidget(_AbstractLogTreeWidget):
         headers.extend(profiler.CATEGORIES)
         self.setHeaderLabels(headers)
 
-        self.clear()
+        self.clear()  #TODO: Use the time value stored to be able to not re-generate data if they already exists.
 
         # -- Set check Datas
         checkProfile = profiler.get(AtConstants.CHECK)
@@ -1782,6 +1783,8 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         Also update the general progress bar to display execution progress.
         """
 
+        start = time.time()
+
         if not self._processWidgets:
             return
 
@@ -1798,6 +1801,8 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
             if process._isCheckable and process.isChecked() and process.isVisible():
                 self.ensureWidgetVisible(process)
                 process.execCheck()
+
+        print time.time() - start
 
         self.progressValueReseted.emit()
 

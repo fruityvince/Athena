@@ -203,11 +203,11 @@ def pythonImportPathFromPath(path):
     incrementalPath = ''
     pythonImportPath = ''
     for i, folder in enumerate(path_.split(os.sep)):
-        if i:
-            incrementalPath += '{}{}'.format(os.sep, folder)
-        else:
-            incrementalPath += os.sep
+        if i == 0:
+            incrementalPath = folder or os.sep
             continue
+        else:
+            incrementalPath += '{}{}'.format(os.sep, folder)
 
         if '__init__.py' in os.listdir(incrementalPath):
             pythonImportPath += '{}{}'.format('.' if pythonImportPath else '', folder)
