@@ -1438,43 +1438,69 @@ class ProfilerWidget(_AbstractLogTreeWidget):
         headers.extend(profiler.CATEGORIES)
         self.setHeaderLabels(headers)
 
-        self.clear()  #TODO: Use the time value stored to be able to not re-generate data if they already exists.
-
         # -- Set check Datas
         checkProfile = profiler.get(AtConstants.CHECK)
         if checkProfile is not None:
-            checkParent = QtWidgets.QTreeWidgetItem([AtConstants.CHECK, checkProfile['ncalls'], checkProfile['tottime']])
-            for call in checkProfile['calls']:
-                callData = ['']
-                callData.extend(call)
-                checkChild = QtWidgets.QTreeWidgetItem(callData)
-                checkParent.addChild(checkChild)
+            currentCheckWidget = next(iter(self.findItems(AtConstants.CHECK, 0) or ()), None)
+            if not currentCheckWidget or (checkProfile['time'] > currentCheckWidget.data(0, QtCore.Qt.UserRole)['time']):
+                checkParent = QtWidgets.QTreeWidgetItem([AtConstants.CHECK, checkProfile['ncalls'], checkProfile['tottime']])
+                checkParent.setData(0, QtCore.Qt.UserRole, checkProfile)
+                for call in checkProfile['calls']:
+                    callData = ['']
+                    callData.extend(call)
+                    checkChild = QtWidgets.QTreeWidgetItem(callData)
+                    checkParent.addChild(checkChild)
 
-            self.addTopLevelItem(checkParent)
+                if currentCheckWidget:
+                    index = self.indexOfTopLevelItem(currentCheckWidget)
+                    self.takeTopLevelItem(index)
+                    del currentCheckWidget
+                    self.insertTopLevelItem(index, checkParent)
+                else:
+                    self.addTopLevelItem(checkParent)
+
 
         # -- Set fix Data
         fixProfile = profiler.get(AtConstants.FIX)
         if fixProfile is not None:
-            fixParent = QtWidgets.QTreeWidgetItem([AtConstants.FIX, fixProfile['ncalls'], fixProfile['tottime']])
-            for call in fixProfile['calls']:
-                callData = ['']
-                callData.extend(call)
-                fixChild = QtWidgets.QTreeWidgetItem(callData)
-                fixParent.addChild(fixChild)
+            currentFixWidget = next(iter(self.findItems(AtConstants.FIX, 0) or ()), None)
+            if not currentFixWidget or (fixProfile['time'] > currentFixWidget.data(0, QtCore.Qt.UserRole)['time']):
+                fixParent = QtWidgets.QTreeWidgetItem([AtConstants.FIX, fixProfile['ncalls'], fixProfile['tottime']])
+                fixParent.setData(0, QtCore.Qt.UserRole, fixProfile)
+                for call in fixProfile['calls']:
+                    callData = ['']
+                    callData.extend(call)
+                    fixChild = QtWidgets.QTreeWidgetItem(callData)
+                    fixParent.addChild(fixChild)
 
-            self.addTopLevelItem(fixParent)
+                if currentFixWidget:
+                    index = self.indexOfTopLevelItem(currentFixWidget)
+                    self.takeTopLevelItem(index)
+                    del currentFixWidget
+                    self.insertTopLevelItem(index, fixParent)
+                else:
+                    self.addTopLevelItem(fixParent)
 
         # -- Set Tool Data
         toolProfile = profiler.get(AtConstants.TOOL)
         if toolProfile is not None:
-            toolParent = QtWidgets.QTreeWidgetItem([AtConstants.TOOL, toolProfile['ncalls'], toolProfile['tottime']])
-            for call in toolProfile['calls']:
-                callData = ['']
-                callData.extend(call)
-                toolChild = QtWidgets.QTreeWidgetItem(callData)
-                toolParent.addChild(toolChild)
+            currentToolWidget = next(iter(self.findItems(AtConstants.TOOL, 0) or ()), None)
+            if not currentToolWidget or (toolProfile['time'] > currentToolWidget.data(0, QtCore.Qt.UserRole)['time']):
+                toolParent = QtWidgets.QTreeWidgetItem([AtConstants.TOOL, toolProfile['ncalls'], toolProfile['tottime']])
+                toolParent.setData(0, QtCore.Qt.UserRole, toolProfile)
+                for call in toolProfile['calls']:
+                    callData = ['']
+                    callData.extend(call)
+                    toolChild = QtWidgets.QTreeWidgetItem(callData)
+                    toolParent.addChild(toolChild)
 
-            self.addTopLevelItem(toolParent)
+                if currentToolWidget:
+                    index = self.indexOfTopLevelItem(currentToolWidget)
+                    self.takeTopLevelItem(index)
+                    del currentToolWidget
+                    self.insertTopLevelItem(index, toolParent)
+                else:
+                    self.addTopLevelItem(toolParent)
 
     def _saveStatsAs(self):
         raise NotImplementedError
@@ -1783,8 +1809,6 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
         Also update the general progress bar to display execution progress.
         """
 
-        start = time.time()
-
         if not self._processWidgets:
             return
 
@@ -1801,8 +1825,6 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
             if process._isCheckable and process.isChecked() and process.isVisible():
                 self.ensureWidgetVisible(process)
                 process.execCheck()
-
-        print time.time() - start
 
         self.progressValueReseted.emit()
 
@@ -1830,7 +1852,7 @@ class ProcessesScrollArea(QtWidgets.QScrollArea):
             if not isinstance(process.status, AtCore.Status.FailStatus):
                 continue
 
-            if  process._isCheckable and process.isChecked() and process.isVisible():
+            if process._isFixable  and process.isChecked() and process.isVisible():
                 self.ensureWidgetVisible(process)
                 process.execFix()
 

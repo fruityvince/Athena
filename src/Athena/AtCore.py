@@ -640,7 +640,7 @@ class Processor(object):
 
         if links:
             self.runLinks(AtConstants.FIX)
-
+        
         return self._filterFeedbacks()
 
     def tool(self, links=True, doProfiling=False):
@@ -1292,12 +1292,21 @@ class _ProcessProfile(object):
 
         profile = cProfile.Profile()
 
+        # Run the method with `cProfile.Profile.runcall` to profile it's execution only. We define exception before
+        # executing it, if an exception occur the except statement will be processed and `exception` will be updated
+        # from `None` to the exception that should be raised.
+        # At the end of this method exception must be raised in case it should be catch at upper leve in the code.
+        # This allow to not skip the profiling even if an exception occurred. Of course the profiling will not be complete
+        # But there should be all information from the beginning of the method to the exception. May be usefull for debugging.
         exception = None
         try:
             returnValue = profile.runcall(method, *args, **kwargs)
         except Exception as exception:
             pass
 
+        # Create a temp file and use it as a stream for the `pstats.Stats` This will allow us to open the file
+        # and retrieve the stats as a string. With regex it's now possible to retrieve all the data in a displayable format
+        # for any user interface.
         fd, tmpFile = tempfile.mkstemp()
         try:
             with open(tmpFile, 'w') as statStream:
