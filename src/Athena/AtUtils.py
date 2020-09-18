@@ -191,7 +191,6 @@ def _formatSoftware(softwarePath):
 
 
 def pythonImportPathFromPath(path):
-    
     if not os.path.exists(path):
         raise IOError('Path `{}` does not exists.'.format(path))
 
@@ -200,12 +199,16 @@ def pythonImportPathFromPath(path):
         path_, _, file = path.rpartition(os.sep)
     elif os.path.isdir(path):
         path_, file = path, None
-        
     
     incrementalPath = ''
     pythonImportPath = ''
-    for folder in path_.split(os.sep):
-        incrementalPath += '{}{}'.format(os.sep if incrementalPath else '', folder)
+    for i, folder in enumerate(path_.split(os.sep)):
+        if i:
+            incrementalPath += '{}{}'.format(os.sep, folder)
+        else:
+            incrementalPath += os.sep
+            continue
+
         if '__init__.py' in os.listdir(incrementalPath):
             pythonImportPath += '{}{}'.format('.' if pythonImportPath else '', folder)
     

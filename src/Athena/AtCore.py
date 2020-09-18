@@ -6,6 +6,7 @@ import time
 import inspect
 import enum
 import pkgutil
+import tempfile
 
 import cProfile
 import pstats
@@ -1297,13 +1298,21 @@ class _ProcessProfile(object):
         except Exception as exception:
             pass
 
-        with open('stats.stat', 'w') as statStream:
-            stats = pstats.Stats(profile, stream=statStream)
-            stats.sort_stats('cumulative')  # cumulative will use the `cumtime` to order stats, seems the most relevant.
-            stats.print_stats()
-        
-        with open('stats.stat', 'r') as statStream:
-            statsStr = statStream.read()
+        fd, path = tempfile.mkstemp()
+        try:
+            with open(path, 'w') as statStream:
+                stats = pstats.Stats(profile, stream=statStream)
+                stats.sort_stats('cumulative')  # cumulative will use the `cumtime` to order stats, seems the most relevant.
+                stats.print_stats()
+            
+            with open(path, 'r') as statStream:
+                statsStr = statStream.read()
+        except Exception as exception:
+            # If an error occur it will not be silent, but the temp file will be removed anyway.
+            raise exception
+        finally:
+            # No matter what happen, we want to delete the file.
+            os.remove(path)
 
         split = statsStr.split('\n')
         methodProfile = {
