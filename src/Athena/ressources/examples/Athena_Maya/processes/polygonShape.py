@@ -64,18 +64,13 @@ class PolygonShape(AtCore.Process):
                         self.toFix.append('%s.f[%d]' % (dagPath.fullPathName(), faceID))
 
             mIt_kMesh.next()
-
-        # self.NGONS.successStatus = Athena.Status.CORRECT  #FIXME This will raise - But if removed and blueprints are reloaded, it will still fail
-        self.setFeedback(thread=self.TRIS if mode == 'tris' else self.NGONS, 
-                         toDisplay=[cmds.ls(face, shortNames=True)[0] for face in self.toFix],
-                         toSelect=self.toFix)
         
         # self.setAllSuccess()
         if self.toFix:
             if mode == 'tris':
-                self.TRIS.setFail()
+                self.TRIS.setFail(toDisplay=[cmds.ls(face, shortNames=True)[0] for face in self.toFix], toSelect=self.toFix)
             if mode == 'nGons':
-                self.NGONS.setFail()
+                self.NGONS.setFail(toDisplay=[cmds.ls(face, shortNames=True)[0] for face in self.toFix], toSelect=self.toFix)
 
 
         return self.toFix

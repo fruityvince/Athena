@@ -135,14 +135,12 @@ class NoStaticAnimKeys(AtCore.Process):
         self.staticKeys = staticKeys
 
         if staticCurves:
-            self.STATIC_CURVES.setFail()
-            self.setFeedback(self.STATIC_CURVES, toDisplay=staticCurves, toSelect=staticCurves)
+            self.STATIC_CURVES.setFail(toDisplay=staticCurves, toSelect=staticCurves)
         else:
             self.STATIC_CURVES.setSuccess()
 
         if staticKeys:
-            self.STATIC_KEYS.setFail()
-            self.setFeedback(thread=self.STATIC_KEYS, toDisplay=staticKeys, toSelect=staticKeys)
+            self.STATIC_KEYS.setFail(toDisplay=staticKeys, toSelect=staticKeys)
         else:
             self.STATIC_KEYS.setSuccess()
 

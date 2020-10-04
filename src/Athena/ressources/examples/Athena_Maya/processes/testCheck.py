@@ -31,7 +31,7 @@ class TestCheck(AtCore.Process):
 
     """
 
-    _name_ = 'チェックのテスト'
+    # _name_ = 'チェックのテスト'
 
     _doc_ = \
     """
@@ -71,32 +71,17 @@ class TestCheck(AtCore.Process):
                 self.toFix[0].append(node)
 
             if all(axe == 0.0 for axe in cmds.getAttr('{}.translate'.format(node))[0]):
-                self.NODES_AT_ORIGIN.setFail()
-                self.addFeedback(
-                    thread=self.NODES_AT_ORIGIN,
-                    toDisplay=node,
-                    toSelect=node,
-            )
+                self.NODES_AT_ORIGIN.setFail(toDisplay=node, toSelect=node)
 
         if self.toFix[0]:
-            self.NODES_UNDER_WORLD.setFail()
-            self.setFeedback(
-                    thread=self.NODES_UNDER_WORLD,
-                    toDisplay=self.toFix[0],
-                    toSelect=self.toFix[0],
-                )
+            self.NODES_UNDER_WORLD.setFail(toDisplay=self.toFix[0], toSelect=self.toFix[0])
 
         errors = list(range(0, 10000))
         baseProgressValue = (100. / len(errors) or 1)
         for i, error in enumerate(errors):
             self.setProgressValue(baseProgressValue * i, text='Checking: {0}'.format(error))
         if errors:
-            self.TEST_PERFORMANCES.setFail()
-            self.setFeedback(
-                    thread=self.TEST_PERFORMANCES,
-                    toDisplay=errors,
-                    toSelect=errors,
-                )
+            self.TEST_PERFORMANCES.setFail(toDisplay=errors, toSelect=errors)
         else:
             self.TEST_PERFORMANCES.setSuccess()
 
@@ -104,7 +89,7 @@ class TestCheck(AtCore.Process):
 
     def fix(self):
 
-        feedback = self.getFeedback(self.NODES_UNDER_WORLD)
+        feedback = self.NODES_UNDER_WORLD.feedback
         if feedback is not None:
             cmds.group(feedback._toSelect)
 

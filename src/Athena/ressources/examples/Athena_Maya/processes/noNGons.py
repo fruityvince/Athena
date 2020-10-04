@@ -14,4 +14,4 @@ class NoNGons(polygonShape.PolygonShape):
 
     def check(self, mode='nGons'):
         super(NoNGons, self).check(mode=mode)
-    	raise Exception
+    	raise Exception('No NoNGons test Exception')

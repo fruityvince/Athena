@@ -11,7 +11,7 @@ header = \
     ID.NamespacesAreIncremental,
 )
 
-register = \
+descriptions = \
 {
     ID.NoConstructionHistory:
         {
@@ -32,15 +32,16 @@ register = \
         {
             'process': 'Athena.ressources.examples.Athena_Maya.processes.noNGons.NoNGons',
             'category': 'Model Sanity',
-            # 'links': 
-            #   (
-            #       (ID.NoConstructionHistory, Link.CHECK, Link.FIX),
-            #   ),
+            'links': 
+              (
+                  (ID.NoTris, Link.CHECK, Link.CHECK),
+              ),
         },
 
     ID.NoTris:
         {
             'process': 'Athena.ressources.examples.Athena_Maya.processes.noTris.NoTris',
+            'tags': Tag.DEPENDANT,
             'category': 'Model Sanity',
         },
 
@@ -57,7 +58,7 @@ register = \
             'category': 'Animation',
         },
 
-    ID.CleanCompoundConnections:  # Second NoTris check to test if the wrapp of the class attribute is an issue. It should not.
+    ID.CleanCompoundConnections:
         {
             'process': 'Athena.ressources.examples.Athena_Maya.processes.cleanCompoundConnections.CleanCompoundConnections',
             'category': 'Dependency Graph Sanity',

@@ -1,3 +1,4 @@
+# coding: utf8
 """
           _   _                      
      /\  | | | |                     
@@ -25,51 +26,55 @@ def launch(register, env=None, displayMode=AtConstants.AVAILABLE_DISPLAY_MODE[0]
     return window
 
 
-def batch(context, env, dev=False):
+def batch(blueprintModule, doFix=False, recursion=1, dev=False):
     """ Used to run blueprintes without any AtUi """
 
-    # if dev:
-    #     forceReload()
+    register = AtCore.Register()
+    register.loadBlueprintFromModuleStr(blueprintModule)
 
-    register = AtCore.Register.initFromImportedPackage()
-    blueprints = register.getBlueprints(context, env)
+    blueprint = register.blueprints[0]
 
     traceback = []
     toFix = []
-    for blueprint in blueprints:
+    for processor in blueprint.processors:
 
-        if not blueprint._isCheckable or blueprint._isNonBlocking or not blueprint._inBatch:
+        if not processor.isCheckable or processor.isNonBlocking or not processor.inBatch:
             continue
 
         try:
-            result, state = blueprint.check()
-            if state:
-                toFix.append(blueprint)
+            feedbacks, status = processor.check()
+            if isinstance(status, AtCore.Status.FailStatus):
+                toFix.append(processor)
+                traceback.append((processor.name, feedbacks, status))
 
         except Exception as exception:
-            pass  #TODO: Raise an error
+            feedbacks, _ = processor._filterFeedbacks()
+            toFix.append(processor)
+            traceback.append((processor.name, feedbacks, AtCore.Status._EXCEPTION))
 
-    for blueprint in toFix:
-        try:
-            blueprint.fix()
-            result, state = blueprint.check()
-            
-            if state:
-                traceback.append((blueprint.name, result))
+    if doFix:
+        for processor in toFix:
+            try:
+                processor.fix()
+                feedbacks, status = processor.check()
+                
+                if isinstance(status, AtCore.Status.FailStatus):
+                    traceback.append((processor.name, feedbacks, status))
 
-        except Exception as exception:
-            pass  #TODO: Raise an error
+            except Exception as exception:
+                feedbacks, status = processor._filterFeedbacks()
+                traceback.append((processor.name, feedbacks, AtCore.Status._EXCEPTION))
 
     if traceback:
-        log = "\nErrors found during execution of {0}'s {1} blueprints:\n".format(context, env)
+        log = "\nErrors found during execution of {0}:\n".format(blueprint.name)
         log += '-'*len(log) + '\n'
 
-        for blueprintName, result in traceback:
-            log += '\n\t{0}:'.format(blueprintName)
+        for processorName, feedbacks, status in traceback:
+            log += '\n\t{0} ({1}):'.format(processorName, status.name)
 
-            for each in result:
-                log += '\n\t\t- {0}:'.format(each['title'])
-                log += '\n\t\t\t{0}'.format(each['toDisplay'])
+            for feedback in feedbacks:
+                log += '\n\t\t- {0}:'.format(feedback.thread.title)
+                log += '\n\t\t\t{0}'.format(feedback.toDisplay)
         
         print(log)
         return False

@@ -67,12 +67,7 @@ class CleanCompoundConnections(AtCore.Process):
 
         # Add the feedback and set the process to True.
         if self.toFix:
-            self.DIRTY_COMPOUND_NODES.setFail()
-            self.setFeedback(
-                self.DIRTY_COMPOUND_NODES,
-                toDisplay=self.toFix,
-                toSelect=self.toFix,
-            )
+            self.DIRTY_COMPOUND_NODES.setFail(toDisplay=self.toFix, toSelect=self.toFix)
         self.isChecked = True
 
     def fix(self):

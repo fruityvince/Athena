@@ -27,12 +27,7 @@ class NoConstructionHistory(AtCore.Process):
                 self.toFix.append(each)
 
         if self.toFix:
-            self.NODES_WITH_HISTORY.setFail()
-            self.setFeedback(
-                    thread=self.NODES_WITH_HISTORY,
-                    toDisplay=[cmds.ls(node, shortNames=True)[0] for node in self.toFix],
-                    toSelect=self.toFix
-                )
+            self.NODES_WITH_HISTORY.setFail(toDisplay=[cmds.ls(node, shortNames=True)[0] for node in self.toFix], toSelect=self.toFix)
         # else:
         #     self.setSuccess(self.NODES_WITH_HISTORY)
 

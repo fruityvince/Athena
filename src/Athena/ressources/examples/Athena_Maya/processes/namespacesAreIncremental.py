@@ -116,12 +116,7 @@ class NamespacesAreIncremental(AtCore.Process):
                     break
 
         if nonIncrementalNSFeedback:
-            self.NON_INCREMENTAL_NAMESPACE.setFail()
-            self.setFeedback(
-                self.NON_INCREMENTAL_NAMESPACE,
-                toDisplay=nonIncrementalNSFeedback,
-                toSelect=nonIncrementalNSFeedback
-            )
+            self.NON_INCREMENTAL_NAMESPACE.setFail(toDisplay=nonIncrementalNSFeedback, toSelect=nonIncrementalNSFeedback)
         self.nonIncrementalNS = nonIncrementalNS
 
         self.isChecked = True

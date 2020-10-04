@@ -8,7 +8,7 @@ header = \
     ID.TestCheck,
 )
 
-register = \
+descriptions = \
 {
     ID.NoConstructionHistory:
         {
