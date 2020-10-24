@@ -18,27 +18,6 @@ from Athena import AtExceptions
 from Athena import AtUtils
 
 
-class ProcessDataDescriptor(object):
-
-    def __init__(self):
-        self.__DATA = {}
-
-    def __get__(self, instance, cls):
-        if cls in self.__DATA:
-            return self.__DATA[cls]
-
-        raise AttributeError('Object {0} does not have any data for attribute {1}', instance.__name__, self.__name)
-
-    def __del__(self):
-        raise NotImplementedError('Unable to delete Process Data')
-
-
-class ProcessMeta(type):
-
-    def __new__(self, className, bases, attrs):
-        return super(ProcessMeta, self).__new__(className, bases, attrs)
-
-
 class Process(object):
     """Abstract class from which any Athena Processes must inherit.
 
@@ -80,7 +59,6 @@ class Process(object):
     _name_ = ''
     _doc_ = ''
 
-    # __metaclass__ = ProcessMeta
 
     def __new__(cls, *args, **kwargs):
         """Generate a new class instance and setup its default attributes.
@@ -484,7 +462,7 @@ class Blueprint(object):
     def processorByName(self, name):
         """Find a processor from blueprint's processors based on it's name.
         
-        Parameters
+        Parameters:
         ----------
         name: str
             The name of the processor to find.
@@ -856,7 +834,7 @@ class Processor(object):
         
         Parameters
         ----------
-        method: classmethod
+        method: types.FunctionType
             The method for which retrieve the arguments and keyword arguments.
 
         Notes
@@ -1130,10 +1108,11 @@ class Link(enum.Enum):
     TOOL = AtConstants.TOOL
 
 
+# -- MetaID and ID are prototype to manage the values in blueprints header. 
+#TODO: This must be removed or replaced for something more robust.
 class MetaID(type):
         
     def __getattr__(cls, value):
-        # id_ = hex(hash(value))
 
         if value not in cls._DATA:
             setattr(cls, value, value)
@@ -1160,6 +1139,8 @@ class ID(six.with_metaclass(MetaID, object)):
     def flush(cls):
         cls._DATA.clear()
 
+# --
+
 
 class Status(object):
     """The Status define the level of priority of a Thread Feedback as well as the state of a process.
@@ -1181,12 +1162,14 @@ class Status(object):
 
         def __new__(cls, *args, **kwargs):
             """Allow to store all new levels in the __ALL_LEVELS class variable to return singleton."""
+
             instance = super(cls.__class__, cls).__new__(cls)
             cls._ALL_STATUS.setdefault(instance.__class__, set()).add(instance)
 
             return instance
         
         def __init__(self, name, color, priority=0.0):
+            """Create the __Status object and setup it's attributes"""
 
             self._name = name
             self._priority = priority
@@ -1194,14 +1177,17 @@ class Status(object):
 
         @property
         def name(self):
+            """Property to access the name of the __Status"""
             return self._name
 
         @property
         def priority(self):
+            """Property to access the priority of the __Status"""
             return self._priority
 
         @property
         def color(self):
+            """Property to access the color of the __Status"""
             return self._color       
 
     class FailStatus(__Status):
@@ -1223,9 +1209,6 @@ class Status(object):
             super(self.__class__, self).__init__(*args, **kwargs)
 
     _DEFAULT =  __BuiltInStatus('Default', (60, 60, 60))
-
-    # INFO =  FeedbackStatus('Info', (200, 200, 200))
-    # PAUSED = FeedbackStatus('Paused', (255, 186, 0))
 
     CORRECT = SuccessStatus('Correct', (22, 194, 15), 0.1)
     SUCCESS = SuccessStatus('Success', (0, 128, 0), 0.2)
@@ -1491,7 +1474,7 @@ class Feedback(object):
 
 
 class Thread(object):
-    """To define in class as descriptor."""
+    """To define in a Process as class attribute constant."""
 
     def __init__(self, title, failStatus=Status.ERROR, successStatus=Status.SUCCESS, documentation=None):
         if not isinstance(failStatus, Status.FailStatus):
@@ -1608,6 +1591,7 @@ class _ProcessThread(Thread):
         self._state = Status.SuccessStatus
 
 
+# -- WIP
 class Event(object):
 
     def __init__(self):
@@ -1643,6 +1627,7 @@ class Callback(object):
     def __call__(self):
         return self.callable(*self.args, **self.kwargs)
 
+
 class EventSystem(object):
 
     RegisterCreated = Event()
@@ -1661,6 +1646,7 @@ class EventSystem(object):
         getattr(cls, eventName).register(callback)
 
         return callback
+# -- WIP END
 
 
 class _ProcessProfile(object):

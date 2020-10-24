@@ -196,9 +196,9 @@ def pythonImportPathFromPath(path):
 
     path_, file_ = None, None    
     if os.path.isfile(path):
-        path_, _, file = path.rpartition(os.sep)
+        path_, _, file_ = path.rpartition(os.sep)
     elif os.path.isdir(path):
-        path_, file = path, None
+        path_, file_ = path, None
     
     incrementalPath = ''
     pythonImportPath = ''
@@ -212,8 +212,8 @@ def pythonImportPathFromPath(path):
         if '__init__.py' in os.listdir(incrementalPath):
             pythonImportPath += '{}{}'.format('.' if pythonImportPath else '', folder)
     
-    if file:
-        pythonImportPath += '.' + os.path.splitext(file)[0]
+    if file_:
+        pythonImportPath += '.' + os.path.splitext(file_)[0]
     
     return pythonImportPath
 

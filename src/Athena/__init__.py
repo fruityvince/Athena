@@ -15,12 +15,12 @@ from Athena import AtCore, AtUtils, AtConstants, AtExceptions, AtTests
 
 __version__ = AtConstants.VERSION
 
-def launch(register, env=None, displayMode=AtConstants.AVAILABLE_DISPLAY_MODE[0], parent=None, _dev=False):
+def launch(register, blueprint=None, displayMode=AtConstants.AVAILABLE_DISPLAY_MODE[0], parent=None, _dev=False):
     """ Main function to launch the tool. """
 
     AtUi._DEV = _dev
 
-    window = AtUi.AthenaWidget(register=register, env=env, displayMode=displayMode, parent=AtUi.getParentApplication())
+    window = AtUi.AthenaWidget(register=register, blueprint=blueprint, displayMode=displayMode, parent=AtUi.getParentApplication())
     window.show()
 
     return window
@@ -171,7 +171,7 @@ if __name__ == '__main__':
     register = AtCore.Register()
     register.loadBlueprintsFromPackageStr('Athena.ressources.examples.Athena_Standalone')
 
-    launch(register, displayMode='Category', dev=True, parent=application)
+    launch(register, displayMode='Category', _dev=True, parent=application)
 
     application.exec_()
     # window = sys.modules[__name__].AtUi.Athena(displayMode='Category', dev=True, verbose=False)
